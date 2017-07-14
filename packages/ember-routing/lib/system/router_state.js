@@ -1,23 +1,18 @@
-import isEmpty from 'ember-metal/is_empty';
-import EmberObject from 'ember-runtime/system/object';
-import assign from 'ember-metal/assign';
+import { assign } from 'ember-utils';
+import { shallowEqual } from '../utils';
+import { Object as EmberObject } from 'ember-runtime';
 
-const keys = Object.keys;
-
-var RouterState = EmberObject.extend({
+export default EmberObject.extend({
   emberRouter: null,
   routerJs: null,
   routerJsState: null,
 
   isActiveIntent(routeName, models, queryParams, queryParamsMustMatch) {
-    var state = this.routerJsState;
+    let state = this.routerJsState;
     if (!this.routerJs.isActiveIntent(routeName, models, null, state)) { return false; }
 
-    var emptyQueryParams = isEmpty(keys(queryParams));
-
-    if (queryParamsMustMatch && !emptyQueryParams) {
-      var visibleQueryParams = {};
-      assign(visibleQueryParams, queryParams);
+    if (queryParamsMustMatch && Object.keys(queryParams).length > 0) {
+      let visibleQueryParams = assign({}, queryParams);
 
       this.emberRouter._prepareQueryParams(routeName, models, visibleQueryParams);
       return shallowEqual(visibleQueryParams, state.queryParams);
@@ -26,16 +21,3 @@ var RouterState = EmberObject.extend({
     return true;
   }
 });
-
-function shallowEqual(a, b) {
-  var k;
-  for (k in a) {
-    if (a.hasOwnProperty(k) && a[k] !== b[k]) { return false; }
-  }
-  for (k in b) {
-    if (b.hasOwnProperty(k) && a[k] !== b[k]) { return false; }
-  }
-  return true;
-}
-
-export default RouterState;

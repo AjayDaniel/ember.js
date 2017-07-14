@@ -1,13 +1,13 @@
-import {SuiteModuleBuilder} from 'ember-runtime/tests/suites/suite';
-import {Freezable} from 'ember-runtime/mixins/freezable';
-import {get} from 'ember-metal/property_get';
+import { SuiteModuleBuilder } from '../suite';
+import { Freezable } from '../../../mixins/freezable';
+import { get } from 'ember-metal';
 
-var suite = SuiteModuleBuilder.create();
+const suite = SuiteModuleBuilder.create();
 
 suite.module('frozenCopy');
 
 suite.test('frozen objects should return same instance', function() {
-  var obj, copy;
+  let obj, copy;
 
   obj = this.newObject();
   if (get(this, 'shouldBeFreezable')) {

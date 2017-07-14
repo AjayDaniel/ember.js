@@ -1,151 +1,121 @@
-import Ember from 'ember-metal/core';
-import RSVP from 'ember-runtime/ext/rsvp';
-import Route from 'ember-routing/system/route';
-import run from 'ember-metal/run_loop';
-import { set } from 'ember-metal/property_set';
-import { compile } from 'ember-template-compiler';
-import Application from 'ember-application/system/application';
-import jQuery from 'ember-views/system/jquery';
-import NoneLocation from 'ember-routing/location/none_location';
+import { RSVP } from 'ember-runtime';
+import { Route } from 'ember-routing';
+import { moduleFor, ApplicationTestCase } from 'internal-test-helpers';
 
-var Router, App, router, registry, container;
+function assertHasClass(assert, selector, label) {
+  let testLabel = `${selector.attr('id')} should have class ${label}`;
 
-var aboutDefer, otherDefer;
-
-function bootApplication() {
-  router = container.lookup('router:main');
-  run(App, 'advanceReadiness');
+  assert.equal(selector.hasClass(label), true, testLabel);
 }
 
-var updateCount, replaceCount;
+function assertHasNoClass(assert, selector, label) {
+  let testLabel = `${selector.attr('id')} should not have class ${label}`;
 
-function sharedSetup() {
-  App = Application.create({
-    name: 'App',
-    rootElement: '#qunit-fixture'
-  });
-
-  App.deferReadiness();
-
-  updateCount = replaceCount = 0;
-  App.Router.reopen({
-    location: NoneLocation.create({
-      setURL(path) {
-        updateCount++;
-        set(this, 'path', path);
-      },
-
-      replaceURL(path) {
-        replaceCount++;
-        set(this, 'path', path);
-      }
-    })
-  });
-
-  Router = App.Router;
-  registry = App.__registry__;
-  container = App.__container__;
+  assert.equal(selector.hasClass(label), false, testLabel);
 }
 
-function sharedTeardown() {
-  run(function() { App.destroy(); });
-  Ember.TEMPLATES = {};
-}
+moduleFor('The {{link-to}} helper: .transitioning-in .transitioning-out CSS classes', class extends ApplicationTestCase {
+  constructor() {
+    super();
 
-QUnit.module('The {{link-to}} helper: .transitioning-in .transitioning-out CSS classes', {
-  setup() {
-    run(function() {
-      sharedSetup();
+    this.aboutDefer = RSVP.defer();
+    this.otherDefer = RSVP.defer();
+    let _this = this;
 
-      registry.unregister('router:main');
-      registry.register('router:main', Router);
-
-      Router.map(function() {
-        this.route('about');
-        this.route('other');
-      });
-
-      App.AboutRoute = Route.extend({
-        model() {
-          aboutDefer = RSVP.defer();
-          return aboutDefer.promise;
-        }
-      });
-
-      App.OtherRoute = Route.extend({
-        model() {
-          otherDefer = RSVP.defer();
-          return otherDefer.promise;
-        }
-      });
-
-
-      Ember.TEMPLATES.application = compile('{{outlet}}{{link-to \'Index\' \'index\' id=\'index-link\'}}{{link-to \'About\' \'about\' id=\'about-link\'}}{{link-to \'Other\' \'other\' id=\'other-link\'}}');
-    });
-  },
-
-  teardown() {
-    sharedTeardown();
-    aboutDefer = null;
-  }
-});
-
-QUnit.test('while a transition is underway', function() {
-  expect(18);
-  bootApplication();
-
-  function assertHasClass(className) {
-    var i = 1;
-    while (i < arguments.length) {
-      var $a = arguments[i];
-      var shouldHaveClass = arguments[i + 1];
-      equal($a.hasClass(className), shouldHaveClass, $a.attr('id') + ' should ' + (shouldHaveClass ? '' : 'not ') + 'have class ' + className);
-      i += 2;
-    }
-  }
-
-  var $index = jQuery('#index-link');
-  var $about = jQuery('#about-link');
-  var $other = jQuery('#other-link');
-
-  run($about, 'click');
-
-  assertHasClass('active', $index, true, $about, false, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-out', $index, true, $about, false, $other, false);
-
-  run(aboutDefer, 'resolve');
-
-  assertHasClass('active', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, false, $other, false);
-  assertHasClass('ember-transitioning-out', $index, false, $about, false, $other, false);
-});
-
-QUnit.test('while a transition is underway with nested link-to\'s', function() {
-  expect(54);
-
-  Router.map(function() {
-    this.route('parent-route', function() {
+    this.router.map(function() {
       this.route('about');
       this.route('other');
     });
-  });
 
-  App.ParentRouteAboutRoute = Route.extend({
-    model() {
-      aboutDefer = RSVP.defer();
-      return aboutDefer.promise;
-    }
-  });
+    this.add('route:about', Route.extend({
+      model() {
+        return _this.aboutDefer.promise;
+      }
+    }));
 
-  App.ParentRouteOtherRoute = Route.extend({
-    model() {
-      otherDefer = RSVP.defer();
-      return otherDefer.promise;
-    }
-  });
+    this.add('route:other', Route.extend({
+      model() {
+        return _this.otherDefer.promise;
+      }
+    }));
 
-  Ember.TEMPLATES.application = compile(`
+    this.addTemplate('application',`
+      {{outlet}}
+      {{link-to 'Index' 'index' id='index-link'}}
+      {{link-to 'About' 'about' id='about-link'}}
+      {{link-to 'Other' 'other' id='other-link'}}
+    `);
+
+    this.visit('/');
+  }
+
+  teardown() {
+    super.teardown();
+    this.aboutDefer = null;
+    this.otherDefer = null;
+  }
+
+  ['@test while a transition is underway'](assert) {
+    let $index = this.$('#index-link');
+    let $about = this.$('#about-link');
+    let $other = this.$('#other-link');
+
+    $about.click();
+
+    assertHasClass(assert, $index, 'active');
+    assertHasNoClass(assert, $about, 'active');
+    assertHasNoClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
+
+    this.runTask(() => this.aboutDefer.resolve());
+
+    assertHasNoClass(assert, $index, 'active');
+    assertHasClass(assert, $about, 'active');
+    assertHasNoClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasNoClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
+  }
+});
+
+moduleFor(`The {{link-to}} helper: .transitioning-in .transitioning-out CSS classes - nested link-to's`, class extends ApplicationTestCase {
+  constructor() {
+    super();
+    this.aboutDefer = RSVP.defer();
+    this.otherDefer = RSVP.defer();
+    let _this = this;
+
+    this.router.map(function() {
+      this.route('parent-route', function() {
+        this.route('about');
+        this.route('other');
+      });
+    });
+    this.add('route:parent-route.about', Route.extend({
+      model() {
+        return _this.aboutDefer.promise;
+      }
+    }));
+
+    this.add('route:parent-route.other', Route.extend({
+      model() {
+        return _this.otherDefer.promise;
+      }
+    }));
+
+    this.addTemplate('application', `
       {{outlet}}
       {{#link-to 'index' tagName='li'}}
         {{link-to 'Index' 'index' id='index-link'}}
@@ -158,55 +128,117 @@ QUnit.test('while a transition is underway with nested link-to\'s', function() {
       {{/link-to}}
     `);
 
-  bootApplication();
-
-  function assertHasClass(className) {
-    var i = 1;
-    while (i < arguments.length) {
-      var $a = arguments[i];
-      var shouldHaveClass = arguments[i + 1];
-      equal($a.hasClass(className), shouldHaveClass, $a.attr('id') + ' should ' + (shouldHaveClass ? '' : 'not ') + 'have class ' + className);
-      i += 2;
-    }
+    this.visit('/');
   }
 
-  var $index = jQuery('#index-link');
-  var $about = jQuery('#about-link');
-  var $other = jQuery('#other-link');
+  resolveAbout() {
+    return this.runTask(() => {
+      this.aboutDefer.resolve();
+      this.aboutDefer = RSVP.defer();
+    });
+  }
 
-  run($about, 'click');
+  resolveOther() {
+    return this.runTask(() => {
+      this.otherDefer.resolve();
+      this.otherDefer = RSVP.defer();
+    });
+  }
 
-  assertHasClass('active', $index, true, $about, false, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-out', $index, true, $about, false, $other, false);
+  teardown() {
+    super.teardown();
+    this.aboutDefer = null;
+    this.otherDefer = null;
+  }
 
-  run(aboutDefer, 'resolve');
+  [`@test while a transition is underway with nested link-to's`](assert) {
+    let $index = this.$('#index-link');
+    let $about = this.$('#about-link');
+    let $other = this.$('#other-link');
 
-  assertHasClass('active', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, false, $other, false);
-  assertHasClass('ember-transitioning-out', $index, false, $about, false, $other, false);
+    $about.click();
 
-  run($other, 'click');
+    assertHasClass(assert, $index, 'active');
+    assertHasNoClass(assert, $about, 'active');
+    assertHasNoClass(assert, $about, 'active');
 
-  assertHasClass('active', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, false, $other, true);
-  assertHasClass('ember-transitioning-out', $index, false, $about, true, $other, false);
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
 
-  run(otherDefer, 'resolve');
+    assertHasClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
 
-  assertHasClass('active', $index, false, $about, false, $other, true);
-  assertHasClass('ember-transitioning-in', $index, false, $about, false, $other, false);
-  assertHasClass('ember-transitioning-out', $index, false, $about, false, $other, false);
+    this.resolveAbout();
 
-  run($about, 'click');
+    assertHasNoClass(assert, $index, 'active');
+    assertHasClass(assert, $about, 'active');
+    assertHasNoClass(assert, $other, 'active');
 
-  assertHasClass('active', $index, false, $about, false, $other, true);
-  assertHasClass('ember-transitioning-in', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-out', $index, false, $about, false, $other, true);
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasNoClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
 
-  run(aboutDefer, 'resolve');
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
 
-  assertHasClass('active', $index, false, $about, true, $other, false);
-  assertHasClass('ember-transitioning-in', $index, false, $about, false, $other, false);
-  assertHasClass('ember-transitioning-out', $index, false, $about, false, $other, false);
+    $other.click();
+
+    assertHasNoClass(assert, $index, 'active');
+    assertHasClass(assert, $about, 'active');
+    assertHasNoClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasNoClass(assert, $about, 'ember-transitioning-in');
+    assertHasClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
+
+    this.resolveOther();
+
+    assertHasNoClass(assert, $index, 'active');
+    assertHasNoClass(assert, $about, 'active');
+    assertHasClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasNoClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
+
+    $about.click();
+
+
+    assertHasNoClass(assert, $index, 'active');
+    assertHasNoClass(assert, $about, 'active');
+    assertHasClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasClass(assert, $other, 'ember-transitioning-out');
+
+    this.resolveAbout();
+
+    assertHasNoClass(assert, $index, 'active');
+    assertHasClass(assert, $about, 'active');
+    assertHasNoClass(assert, $other, 'active');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-in');
+    assertHasNoClass(assert, $about, 'ember-transitioning-in');
+    assertHasNoClass(assert, $other, 'ember-transitioning-in');
+
+    assertHasNoClass(assert, $index, 'ember-transitioning-out');
+    assertHasNoClass(assert, $about, 'ember-transitioning-out');
+    assertHasNoClass(assert, $other, 'ember-transitioning-out');
+  }
 });

@@ -37,13 +37,7 @@
 
     <script>
       (function() {
-        window.Ember = {
-          testing: true
-        };
-        window.ENV = window.ENV || {
-          _ENABLE_LEGACY_VIEW_SUPPORT: true,
-          _ENABLE_LEGACY_CONTROLLER_SUPPORT: true
-        };
+        window.ENV = window.ENV || {};
 
         window.printTestCounts = function() {
           var passing = $("li[id^='qunit-'].pass").length;
@@ -71,7 +65,13 @@
         ENV['EXTEND_PROTOTYPES'] = !!QUnit.urlParams.extendprototypes;
 
         // Handle testing feature flags
-        ENV['ENABLE_OPTIONAL_FEATURES'] = !!QUnit.urlParams.enableoptionalfeatures;
+        if (QUnit.urlParams.enableoptionalfeatures) {
+          for (var feature in window.ENV.FEATURES) {
+            if (window.ENV.FEATURES[feature] === null) {
+              window.ENV.FEATURES[feature] = true;
+            }
+          }
+        }
 
         ENV['RAISE_ON_DEPRECATION'] = true;
       })();
@@ -85,6 +85,10 @@
       } else {
         loadScript('../ember.debug.js');
       }
+    </script>
+
+    <script type="text/javascript">
+      Ember.testing = true;
     </script>
 
     <script>
@@ -116,6 +120,11 @@
           }
         }
 
+        Ember.Debug.registerDeprecationHandler(function (message, options, next) {
+          var id = options && options.id;
+          next(message, options);
+        });
+
         window.EmberDev = window.EmberDev || {};
         EmberDev.runningProdBuild = !!QUnit.urlParams.prod;
 
@@ -136,7 +145,7 @@
 
         var EmberDevTestHelperAssert = window.Ember.__loader.require('ember-dev/test-helper/index')['default'];
         var setupQUnit = window.Ember.__loader.require('ember-dev/test-helper/setup-qunit')['default'];
-        var debugModule = window.Ember.__loader.require('ember-metal/debug');
+        var debugModule = window.Ember.__loader.require('ember-debug');
         var testHelpers = new EmberDevTestHelperAssert({
           Ember: window.Ember,
           runningProdBuild: EmberDev.runningProdBuild,
@@ -156,8 +165,12 @@
         // Enable/disable livereload
         QUnit.config.urlConfig.push({ id: 'livereload', label: 'Live Reload'});
         // Handle JSHint
-        QUnit.config.urlConfig.push('nojshint');
+        QUnit.config.urlConfig.push({ id: 'nolint', label: 'Skip ESLint'});
         QUnit.config.urlConfig.push('forceskip');
+
+        if (QUnit.config.seed) {
+          QUnit.config.reorder = false;
+        }
 
         QUnit.begin(function() {
           if (QUnit.urlParams.hideskipped) {
@@ -179,9 +192,9 @@
       for (var moduleName in Ember.__loader.registry) {
         if (!moduleName.match(packageRegexp))   { continue; }
         if (moduleName.match(skipPackageRegexp)) { continue; }
+        if (QUnit.urlParams.nolint && moduleName.match(/lint-test$/)) { continue; }
 
         if (moduleName.match(/[_-]test$/)) { Ember.__loader.require(moduleName); }
-        if (!QUnit.urlParams.nojshint && moduleName.match(/[-_.]jshint$/)) { Ember.__loader.require(moduleName); }
       }
     </script>
 

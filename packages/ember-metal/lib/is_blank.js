@@ -1,4 +1,4 @@
-import isEmpty from 'ember-metal/is_empty';
+import isEmpty from './is_empty';
 
 /**
   A value is blank if it is empty or a whitespace string.
@@ -25,5 +25,5 @@ import isEmpty from 'ember-metal/is_empty';
   @public
 */
 export default function isBlank(obj) {
-  return isEmpty(obj) || (typeof obj === 'string' && obj.match(/\S/) === null);
+  return isEmpty(obj) || (typeof obj === 'string' && /\S/.test(obj) === false);
 }

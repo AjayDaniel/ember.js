@@ -3,18 +3,20 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.EXTEND_PROTOTYPES
-import { assert, deprecateFunc } from 'ember-metal/debug';
-import { computed } from 'ember-metal/computed';
-import { observer } from 'ember-metal/mixin';
+import { ENV } from 'ember-environment';
+import {
+  on,
+  computed,
+  observer
+} from 'ember-metal';
+import { assert, deprecateFunc } from 'ember-debug';
 
-var a_slice = Array.prototype.slice;
-var FunctionPrototype = Function.prototype;
+const FunctionPrototype = Function.prototype;
 
-if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
+if (ENV.EXTEND_PROTOTYPES.Function) {
   /**
     The `property` extension of Javascript's Function prototype is available
-    when `Ember.EXTEND_PROTOTYPES` or `Ember.EXTEND_PROTOTYPES.Function` is
+    when `EmberENV.EXTEND_PROTOTYPES` or `EmberENV.EXTEND_PROTOTYPES.Function` is
     `true`, which is the default.
 
     Computed properties allow you to treat a function like a property:
@@ -29,7 +31,7 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
       }.property() // Call this flag to mark the function as a property
     });
 
-    var president = MyApp.President.create({
+    let president = MyApp.President.create({
       firstName: 'Barack',
       lastName: 'Obama'
     });
@@ -65,22 +67,19 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
     will instead clear the cache so that it is updated when the next `get`
     is called on the property.
 
-    See [Ember.ComputedProperty](/api/classes/Ember.ComputedProperty.html), [Ember.computed](/api/#method_computed).
+    See [Ember.ComputedProperty](/api/classes/Ember.ComputedProperty.html), [Ember.computed](/api/classes/Ember.computed.html).
 
     @method property
     @for Function
     @public
   */
   FunctionPrototype.property = function () {
-    var ret = computed(this);
-    // ComputedProperty.prototype.property expands properties; no need for us to
-    // do so here.
-    return ret.property(...arguments);
+    return computed(...arguments, this);
   };
 
   /**
     The `observes` extension of Javascript's Function prototype is available
-    when `Ember.EXTEND_PROTOTYPES` or `Ember.EXTEND_PROTOTYPES.Function` is
+    when `EmberENV.EXTEND_PROTOTYPES` or `EmberENV.EXTEND_PROTOTYPES.Function` is
     true, which is the default.
 
     You can observe property changes simply by adding the `observes`
@@ -103,9 +102,8 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
     @for Function
     @public
   */
-  FunctionPrototype.observes = function(...args) {
-    args.push(this);
-    return observer.apply(this, args);
+  FunctionPrototype.observes = function() {
+    return observer(...arguments, this);
   };
 
 
@@ -114,7 +112,7 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
       'Immediate observers must observe internal properties only, ' +
       'not properties on other objects.',
       function checkIsInternalProperty() {
-        for (var i = 0, l = arguments.length; i < l; i++) {
+        for (let i = 0; i < arguments.length; i++) {
           if (arguments[i].indexOf('.') !== -1) {
             return false;
           }
@@ -128,8 +126,8 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
   };
   /**
     The `observesImmediately` extension of Javascript's Function prototype is
-    available when `Ember.EXTEND_PROTOTYPES` or
-    `Ember.EXTEND_PROTOTYPES.Function` is true, which is the default.
+    available when `EmberENV.EXTEND_PROTOTYPES` or
+    `EmberENV.EXTEND_PROTOTYPES.Function` is true, which is the default.
 
     You can observe property changes simply by adding the `observesImmediately`
     call to the end of your method declarations in classes that you write.
@@ -161,7 +159,7 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
 
   /**
     The `on` extension of Javascript's Function prototype is available
-    when `Ember.EXTEND_PROTOTYPES` or `Ember.EXTEND_PROTOTYPES.Function` is
+    when `EmberENV.EXTEND_PROTOTYPES` or `EmberENV.EXTEND_PROTOTYPES.Function` is
     true, which is the default.
 
     You can listen for events simply by adding the `on` call to the end of
@@ -182,9 +180,6 @@ if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.Function) {
     @public
   */
   FunctionPrototype.on = function () {
-    var events = a_slice.call(arguments);
-    this.__ember_listens__ = events;
-
-    return this;
+    return on(...arguments, this);
   };
 }

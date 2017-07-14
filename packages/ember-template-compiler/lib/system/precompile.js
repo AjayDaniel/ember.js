@@ -2,10 +2,11 @@
 @module ember
 @submodule ember-template-compiler
 */
-import require, { has } from 'require';
-import compileOptions from 'ember-template-compiler/system/compile_options';
 
-var compileSpec;
+import compileOptions from './compile-options';
+import require, { has } from 'require';
+
+let glimmerPrecompile;
 
 /**
   Uses HTMLBars `compile` function to process a string into a compiled template string.
@@ -17,14 +18,14 @@ var compileSpec;
   @method precompile
   @param {String} templateString This is the string to be compiled by HTMLBars.
 */
-export default function(templateString, options) {
-  if (!compileSpec && has('htmlbars-compiler/compiler')) {
-    compileSpec = require('htmlbars-compiler/compiler').compileSpec;
+export default function precompile(templateString, options) {
+  if (!glimmerPrecompile && has('@glimmer/compiler')) {
+    glimmerPrecompile = require('@glimmer/compiler').precompile;
   }
 
-  if (!compileSpec) {
-    throw new Error('Cannot call `compileSpec` without the template compiler loaded. Please load `ember-template-compiler.js` prior to calling `compileSpec`.');
+  if (!glimmerPrecompile) {
+    throw new Error('Cannot call `compile` without the template compiler loaded. Please load `ember-template-compiler.js` prior to calling `compile`.');
   }
 
-  return compileSpec(templateString, compileOptions(options));
+  return glimmerPrecompile(templateString, compileOptions(options));
 }

@@ -1,12 +1,11 @@
-import Ember from 'ember-metal/core';
-import { A as emberA } from 'ember-runtime/system/native_array';
-import { typeOf } from 'ember-runtime/utils';
+import Ember from 'ember-metal'; // Ember as namespace
 import {
-  dasherize,
-  classify
-} from 'ember-runtime/system/string';
-import Namespace from 'ember-runtime/system/namespace';
-import EmberObject from 'ember-runtime/system/object';
+  A as emberA,
+  typeOf,
+  String as StringUtils,
+  Namespace,
+  Object as EmberObject
+} from 'ember-runtime';
 
 /**
 @module ember
@@ -16,7 +15,7 @@ import EmberObject from 'ember-runtime/system/object';
 /**
   The `ContainerDebugAdapter` helps the container and resolver interface
   with tools that debug Ember such as the
-  [Ember Extension](https://github.com/tildeio/ember-extension)
+  [Ember Inspector](https://github.com/emberjs/ember-inspector)
   for Chrome and Firefox.
 
   This class can be extended by a custom resolver implementer
@@ -36,7 +35,7 @@ import EmberObject from 'ember-runtime/system/object';
   Application.initializer({
     name: "containerDebugAdapter",
 
-    initialize: function(application) {
+    initialize(application) {
       application.register('container-debug-adapter:main', require('app/container-debug-adapter'));
     }
   });
@@ -86,18 +85,18 @@ export default EmberObject.extend({
     @public
   */
   catalogEntriesByType(type) {
-    var namespaces = emberA(Namespace.NAMESPACES);
-    var types = emberA();
-    var typeSuffixRegex = new RegExp(`${classify(type)}$`);
+    let namespaces = emberA(Namespace.NAMESPACES);
+    let types = emberA();
+    let typeSuffixRegex = new RegExp(`${StringUtils.classify(type)}$`);
 
-    namespaces.forEach(function(namespace) {
+    namespaces.forEach(namespace => {
       if (namespace !== Ember) {
-        for (var key in namespace) {
+        for (let key in namespace) {
           if (!namespace.hasOwnProperty(key)) { continue; }
           if (typeSuffixRegex.test(key)) {
-            var klass = namespace[key];
+            let klass = namespace[key];
             if (typeOf(klass) === 'class') {
-              types.push(dasherize(key.replace(typeSuffixRegex, '')));
+              types.push(StringUtils.dasherize(key.replace(typeSuffixRegex, '')));
             }
           }
         }

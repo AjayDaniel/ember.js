@@ -1,8 +1,8 @@
-import { assert } from 'ember-metal/debug';
-import { ComputedProperty } from 'ember-metal/computed';
-import { AliasedProperty } from 'ember-metal/alias';
-import { Descriptor } from 'ember-metal/properties';
-import { getOwner } from 'container/owner';
+import { getOwner } from 'ember-utils';
+import { assert } from 'ember-debug';
+import { ComputedProperty } from './computed';
+import { AliasedProperty } from './alias';
+import { Descriptor } from './properties';
 
 /**
   Read-only property that returns the result of a container lookup.
@@ -15,7 +15,7 @@ import { getOwner } from 'container/owner';
          to the property's name
   @private
 */
-function InjectedProperty(type, name) {
+export default function InjectedProperty(type, name) {
   this.type = type;
   this.name = name;
 
@@ -24,26 +24,23 @@ function InjectedProperty(type, name) {
 }
 
 function injectedPropertyGet(keyName) {
-  var desc = this[keyName];
-  let owner = getOwner(this);
+  let desc = this[keyName];
+  let owner = getOwner(this) || this.container; // fallback to `container` for backwards compat
 
   assert(`InjectedProperties should be defined with the Ember.inject computed property macros.`, desc && desc.isDescriptor && desc.type);
   assert(`Attempting to lookup an injected property on an object without a container, ensure that the object was instantiated via a container.`, owner);
 
-  return owner.lookup(desc.type + ':' + (desc.name || keyName));
+  return owner.lookup(`${desc.type}:${desc.name || keyName}`);
 }
 
 InjectedProperty.prototype = Object.create(Descriptor.prototype);
 
-var InjectedPropertyPrototype = InjectedProperty.prototype;
-var ComputedPropertyPrototype = ComputedProperty.prototype;
-var AliasedPropertyPrototype = AliasedProperty.prototype;
+const InjectedPropertyPrototype = InjectedProperty.prototype;
+const ComputedPropertyPrototype = ComputedProperty.prototype;
+const AliasedPropertyPrototype = AliasedProperty.prototype;
 
 InjectedPropertyPrototype._super$Constructor = ComputedProperty;
 
 InjectedPropertyPrototype.get = ComputedPropertyPrototype.get;
 InjectedPropertyPrototype.readOnly = ComputedPropertyPrototype.readOnly;
-
 InjectedPropertyPrototype.teardown = ComputedPropertyPrototype.teardown;
-
-export default InjectedProperty;

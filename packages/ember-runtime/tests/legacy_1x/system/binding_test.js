@@ -1,10 +1,13 @@
-import Ember from 'ember-metal/core';
-import {get} from 'ember-metal/property_get';
-import {set} from 'ember-metal/property_set';
-import run from 'ember-metal/run_loop';
-import {Binding, bind } from 'ember-metal/binding';
-import {observer as emberObserver} from 'ember-metal/mixin';
-import EmberObject from 'ember-runtime/system/object';
+import { context } from 'ember-environment';
+import {
+  get,
+  set,
+  run,
+  Binding,
+  bind,
+  observer as emberObserver
+} from 'ember-metal';
+import EmberObject from '../../../system/object';
 
 
 /*
@@ -44,16 +47,19 @@ import EmberObject from 'ember-runtime/system/object';
 // Binding Tests
 // ========================================================================
 
-var TestNamespace, fromObject, toObject, binding, Bon1, bon2, root; // global variables
-var originalLookup, lookup;
+let TestNamespace, fromObject, toObject, binding, Bon1, bon2, root; // global variables
+const originalLookup = context.lookup;
+let lookup;
 
 QUnit.module('basic object binding', {
   setup() {
     fromObject = EmberObject.create({ value: 'start' });
     toObject = EmberObject.create({ value: 'end' });
     root = { fromObject: fromObject, toObject: toObject };
-    run(function () {
-      binding = bind(root, 'toObject.value', 'fromObject.value');
+    run(() => {
+      expectDeprecation(() => {
+        binding = bind(root, 'toObject.value', 'fromObject.value');
+      }, /`Ember\.Binding` is deprecated./);
     });
   }
 });
@@ -63,7 +69,7 @@ QUnit.test('binding should have synced on connect', function() {
 });
 
 QUnit.test('fromObject change should propagate to toObject only after flush', function() {
-  run(function () {
+  run(() => {
     set(fromObject, 'value', 'change');
     equal(get(toObject, 'value'), 'start');
   });
@@ -71,7 +77,7 @@ QUnit.test('fromObject change should propagate to toObject only after flush', fu
 });
 
 QUnit.test('toObject change should propagate to fromObject only after flush', function() {
-  run(function () {
+  run(() => {
     set(toObject, 'value', 'change');
     equal(get(fromObject, 'value'), 'start');
   });
@@ -98,10 +104,15 @@ QUnit.test('deferred observing during bindings', function() {
     callCount: 0
   });
 
-  var root = { fromObject: fromObject, toObject: toObject };
+  let root = { fromObject: fromObject, toObject: toObject };
   run(function () {
-    bind(root, 'toObject.value1', 'fromObject.value1');
-    bind(root, 'toObject.value2', 'fromObject.value2');
+    expectDeprecation(() => {
+      bind(root, 'toObject.value1', 'fromObject.value1');
+    }, /`Ember\.Binding` is deprecated./);
+
+    expectDeprecation(() => {
+      bind(root, 'toObject.value2', 'fromObject.value2');
+    }, /`Ember\.Binding` is deprecated./);
 
     // change both value1 + value2, then  flush bindings.  observer should only
     // fire after bindings are done flushing.
@@ -120,7 +131,7 @@ QUnit.test('binding disconnection actually works', function() {
   equal(get(toObject, 'value'), 'start');
 });
 
-var first, second, third, binding1, binding2; // global variables
+let first, second, third; // global variables
 
 // ..........................................................
 // chained binding
@@ -144,8 +155,14 @@ QUnit.module('chained binding', {
       third = EmberObject.create({ input: 'third' });
 
       root = { first: first, second: second, third: third };
-      binding1 = bind(root, 'second.input', 'first.output');
-      binding2 = bind(root, 'second.output', 'third.input');
+
+      expectDeprecation(() => {
+        bind(root, 'second.input', 'first.output');
+      }, /`Ember\.Binding` is deprecated./);
+
+      expectDeprecation(() => {
+        bind(root, 'second.output', 'third.input');
+      }, /`Ember\.Binding` is deprecated./);
     });
   },
   teardown() {
@@ -172,8 +189,7 @@ QUnit.test('changing first output should propagate to third after flush', functi
 
 QUnit.module('Custom Binding', {
   setup() {
-    originalLookup = Ember.lookup;
-    Ember.lookup = lookup = {};
+    context.lookup = lookup = {};
 
     Bon1 = EmberObject.extend({
       value1: 'hi',
@@ -187,13 +203,13 @@ QUnit.module('Custom Binding', {
       arr: [1, 2, 3, 4]
     });
 
-    Ember.lookup['TestNamespace'] = TestNamespace = {
+    context.lookup['TestNamespace'] = TestNamespace = {
       bon2: bon2,
       Bon1: Bon1
     };
   },
   teardown() {
-    Ember.lookup = originalLookup;
+    context.lookup = originalLookup;
     Bon1 = bon2 = TestNamespace  = null;
     run.cancelTimers();
   }
@@ -202,11 +218,11 @@ QUnit.module('Custom Binding', {
 QUnit.test('two bindings to the same value should sync in the order they are initialized', function() {
   run.begin();
 
-  var a = EmberObject.create({
+  let a = EmberObject.create({
     foo: 'bar'
   });
 
-  var b = EmberObject.extend({
+  let b = EmberObject.extend({
     C: EmberObject.extend({
       foo: 'bee',
       fooBinding: 'owner.foo'
@@ -216,11 +232,15 @@ QUnit.test('two bindings to the same value should sync in the order they are ini
       this._super(...arguments);
       set(this, 'c', this.C.create({ owner: this }));
     }
-  }).create({
-    foo: 'baz',
-    fooBinding: 'a.foo',
-    a: a
   });
+
+  expectDeprecation(() => {
+    b = b.create({
+      foo: 'baz',
+      fooBinding: 'a.foo',
+      a: a
+    });
+  }, /`Ember\.Binding` is deprecated./);
 
   run.end();
 
@@ -235,53 +255,46 @@ QUnit.test('two bindings to the same value should sync in the order they are ini
 
 QUnit.module('propertyNameBinding with longhand', {
   setup() {
-    originalLookup = Ember.lookup;
-    Ember.lookup = lookup = {};
+    context.lookup = lookup = {};
 
-    Ember.lookup['TestNamespace'] = TestNamespace = {};
-    run(function () {
+    lookup['TestNamespace'] = TestNamespace = {};
+    run(() => {
       TestNamespace.fromObject = EmberObject.create({
         value: 'originalValue'
       });
 
-      TestNamespace.toObject = EmberObject.extend({
-        valueBinding: Binding.from('TestNamespace.fromObject.value'),
-        relativeBinding: Binding.from('localValue')
-      }).create({
-        localValue: 'originalLocal'
-      });
+      expectDeprecation(() => {
+        TestNamespace.toObject = EmberObject.extend({
+          valueBinding: Binding.from('TestNamespace.fromObject.value'),
+          relativeBinding: Binding.from('localValue')
+        }).create({
+          localValue: 'originalLocal'
+        });
+      }, /`Ember\.Binding` is deprecated./);
     });
   },
   teardown() {
     TestNamespace = undefined;
-    Ember.lookup = originalLookup;
+    context.lookup = originalLookup;
   }
 });
 
 QUnit.test('works with full path', function() {
-  run(function () {
-    set(TestNamespace.fromObject, 'value', 'updatedValue');
-  });
+  run(() => set(TestNamespace.fromObject, 'value', 'updatedValue'));
 
   equal(get(TestNamespace.toObject, 'value'), 'updatedValue');
 
-  run(function () {
-    set(TestNamespace.fromObject, 'value', 'newerValue');
-  });
+  run(() => set(TestNamespace.fromObject, 'value', 'newerValue'));
 
   equal(get(TestNamespace.toObject, 'value'), 'newerValue');
 });
 
 QUnit.test('works with local path', function() {
-  run(function () {
-    set(TestNamespace.toObject, 'localValue', 'updatedValue');
-  });
+  run(() => set(TestNamespace.toObject, 'localValue', 'updatedValue'));
 
   equal(get(TestNamespace.toObject, 'relative'), 'updatedValue');
 
-  run(function () {
-    set(TestNamespace.toObject, 'localValue', 'newerValue');
-  });
+  run(() => set(TestNamespace.toObject, 'localValue', 'newerValue'));
 
   equal(get(TestNamespace.toObject, 'relative'), 'newerValue');
 });

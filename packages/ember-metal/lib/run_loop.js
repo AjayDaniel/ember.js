@@ -1,12 +1,13 @@
-import Ember from 'ember-metal/core';
-import { assert } from 'ember-metal/debug';
+import { GUID_KEY } from 'ember-utils';
+import { assert, isTesting } from 'ember-debug';
 import {
-  GUID_KEY
-} from 'ember-metal/utils';
+  dispatchError,
+  setOnerror
+} from './error_handler';
 import {
   beginPropertyChanges,
   endPropertyChanges
-} from 'ember-metal/property_events';
+} from './property_events';
 import Backburner from 'backburner';
 
 function onBegin(current) {
@@ -17,8 +18,16 @@ function onEnd(current, next) {
   run.currentRunLoop = next;
 }
 
-// ES6TODO: should Backburner become es6?
-var backburner = new Backburner(['sync', 'actions', 'destroy'], {
+const onErrorTarget = {
+  get onerror() {
+    return dispatchError;
+  },
+  set onerror(handler) {
+    return setOnerror(handler);
+  }
+};
+
+const backburner = new Backburner(['sync', 'actions', 'destroy'], {
   GUID_KEY: GUID_KEY,
   sync: {
     before: beginPropertyChanges,
@@ -27,7 +36,7 @@ var backburner = new Backburner(['sync', 'actions', 'destroy'], {
   defaultQueue: 'actions',
   onBegin: onBegin,
   onEnd: onEnd,
-  onErrorTarget: Ember,
+  onErrorTarget: onErrorTarget,
   onErrorMethod: 'onerror'
 });
 
@@ -159,11 +168,7 @@ run.join = function() {
   @since 1.4.0
   @public
 */
-run.bind = function(...curried) {
-  return function(...args) {
-    return run.join(...curried.concat(args));
-  };
-};
+run.bind = (...curried) => (...args) => run.join(...curried.concat(args));
 
 run.backburner = backburner;
 run.currentRunLoop = null;
@@ -254,12 +259,17 @@ run.end = function() {
     will be resolved on the target object at the time the scheduled item is
     invoked allowing you to change the target function.
   @param {Object} [arguments*] Optional arguments to be passed to the queued method.
-  @return {void}
+  @return {*} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.schedule = function(/* queue, target, method */) {
-  checkAutoRun();
-  backburner.schedule(...arguments);
+  assert(
+    `You have turned on testing mode, which disabled the run-loop's autorun. ` +
+    `You will need to wrap any code with asynchronous side-effects in a run`,
+    run.currentRunLoop || !isTesting()
+  );
+
+  return backburner.schedule(...arguments);
 };
 
 // Used by global test teardown
@@ -318,7 +328,7 @@ run.sync = function() {
     target at the time the method is invoked.
   @param {Object} [args*] Optional arguments to pass to the timeout.
   @param {Number} wait Number of milliseconds to wait.
-  @return {*} Timer information for use in cancelling, see `run.cancel`.
+  @return {*} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.later = function(/*target, method*/) {
@@ -335,11 +345,15 @@ run.later = function(/*target, method*/) {
     If you pass a string it will be resolved on the
     target at the time the method is invoked.
   @param {Object} [args*] Optional arguments to pass to the timeout.
-  @return {Object} Timer information for use in cancelling, see `run.cancel`.
+  @return {Object} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.once = function(...args) {
-  checkAutoRun();
+  assert(
+    `You have turned on testing mode, which disabled the run-loop's autorun. ` +
+    `You will need to wrap any code with asynchronous side-effects in a run`,
+    run.currentRunLoop || !isTesting()
+  );
   args.unshift('actions');
   return backburner.scheduleOnce(...args);
 };
@@ -393,11 +407,15 @@ run.once = function(...args) {
     If you pass a string it will be resolved on the
     target at the time the method is invoked.
   @param {Object} [args*] Optional arguments to pass to the timeout.
-  @return {Object} Timer information for use in cancelling, see `run.cancel`.
+  @return {Object} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.scheduleOnce = function(/*queue, target, method*/) {
-  checkAutoRun();
+  assert(
+    `You have turned on testing mode, which disabled the run-loop's autorun. ` +
+    `You will need to wrap any code with asynchronous side-effects in a run`,
+    run.currentRunLoop || !isTesting()
+  );
   return backburner.scheduleOnce(...arguments);
 };
 
@@ -423,17 +441,21 @@ run.scheduleOnce = function(/*queue, target, method*/) {
   after all DOM element operations have completed within the current
   run loop, you can make use of the `afterRender` run loop queue (added
   by the `ember-views` package, along with the preceding `render` queue
-  where all the DOM element operations happen). Example:
+  where all the DOM element operations happen).
+
+  Example:
 
   ```javascript
-  App.MyCollectionView = Ember.CollectionView.extend({
-    didInsertElement: function() {
+  export default Ember.Component.extend({
+    didInsertElement() {
+      this._super(...arguments);
       run.scheduleOnce('afterRender', this, 'processChildElements');
     },
-    processChildElements: function() {
-      // ... do something with collectionView's child view
+
+    processChildElements() {
+      // ... do something with component's child component
       // elements after they've finished rendering, which
-      // can't be done within the CollectionView's
+      // can't be done within this component's
       // `didInsertElement` hook because that gets run
       // before the child elements have been added to the DOM.
     }
@@ -457,7 +479,7 @@ run.scheduleOnce = function(/*queue, target, method*/) {
     If you pass a string it will be resolved on the
     target at the time the method is invoked.
   @param {Object} [args*] Optional arguments to pass to the timeout.
-  @return {Object} Timer information for use in cancelling, see `run.cancel`.
+  @return {Object} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.next = function(...args) {
@@ -471,53 +493,53 @@ run.next = function(...args) {
   `run.throttle()`.
 
   ```javascript
-  var runNext = run.next(myContext, function() {
+  let runNext = run.next(myContext, function() {
     // will not be executed
   });
 
   run.cancel(runNext);
 
-  var runLater = run.later(myContext, function() {
+  let runLater = run.later(myContext, function() {
     // will not be executed
   }, 500);
 
   run.cancel(runLater);
 
-  var runScheduleOnce = run.scheduleOnce('afterRender', myContext, function() {
+  let runScheduleOnce = run.scheduleOnce('afterRender', myContext, function() {
     // will not be executed
   });
 
   run.cancel(runScheduleOnce);
 
-  var runOnce = run.once(myContext, function() {
+  let runOnce = run.once(myContext, function() {
     // will not be executed
   });
 
   run.cancel(runOnce);
 
-  var throttle = run.throttle(myContext, function() {
+  let throttle = run.throttle(myContext, function() {
     // will not be executed
   }, 1, false);
 
   run.cancel(throttle);
 
-  var debounce = run.debounce(myContext, function() {
+  let debounce = run.debounce(myContext, function() {
     // will not be executed
   }, 1);
 
   run.cancel(debounce);
 
-  var debounceImmediate = run.debounce(myContext, function() {
+  let debounceImmediate = run.debounce(myContext, function() {
     // will be executed since we passed in true (immediate)
   }, 100, true);
 
-  // the 100ms delay until this method can be called again will be cancelled
+  // the 100ms delay until this method can be called again will be canceled
   run.cancel(debounceImmediate);
   ```
 
   @method cancel
   @param {Object} timer Timer object to cancel
-  @return {Boolean} true if cancelled or false/undefined if it wasn't found
+  @return {Boolean} true if canceled or false/undefined if it wasn't found
   @public
 */
 run.cancel = function(timer) {
@@ -540,7 +562,7 @@ run.cancel = function(timer) {
     console.log(this.name + ' ran.');
   }
 
-  var myContext = { name: 'debounce' };
+  let myContext = { name: 'debounce' };
 
   run.debounce(myContext, whoRan, 150);
 
@@ -563,7 +585,7 @@ run.cancel = function(timer) {
     console.log(this.name + ' ran.');
   }
 
-  var myContext = { name: 'debounce' };
+  let myContext = { name: 'debounce' };
 
   run.debounce(myContext, whoRan, 150, true);
 
@@ -590,7 +612,7 @@ run.cancel = function(timer) {
   @param {Number} wait Number of milliseconds to wait.
   @param {Boolean} immediate Trigger the function on the leading instead
     of the trailing edge of the wait interval. Defaults to false.
-  @return {Array} Timer information for use in cancelling, see `run.cancel`.
+  @return {Array} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.debounce = function() {
@@ -606,7 +628,7 @@ run.debounce = function() {
     console.log(this.name + ' ran.');
   }
 
-  var myContext = { name: 'throttle' };
+  let myContext = { name: 'throttle' };
 
   run.throttle(myContext, whoRan, 150);
   // whoRan is invoked with context myContext
@@ -633,23 +655,12 @@ run.debounce = function() {
   @param {Number} spacing Number of milliseconds to space out requests.
   @param {Boolean} immediate Trigger the function on the leading instead
     of the trailing edge of the wait interval. Defaults to true.
-  @return {Array} Timer information for use in cancelling, see `run.cancel`.
+  @return {Array} Timer information for use in canceling, see `run.cancel`.
   @public
 */
 run.throttle = function() {
   return backburner.throttle(...arguments);
 };
-
-// Make sure it's not an autorun during testing
-function checkAutoRun() {
-  if (!run.currentRunLoop) {
-    assert(
-      `You have turned on testing mode, which disabled the run-loop's autorun. ` +
-      `You will need to wrap any code with asynchronous side-effects in a run`,
-      !Ember.testing
-    );
-  }
-}
 
 /**
   Add a new named queue after the specified queue.

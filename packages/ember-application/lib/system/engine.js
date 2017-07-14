@@ -2,22 +2,30 @@
 @module ember
 @submodule ember-application
 */
-import Namespace from 'ember-runtime/system/namespace';
-import Registry from 'container/registry';
-import RegistryProxy from 'ember-runtime/mixins/registry_proxy';
+import { canInvoke } from 'ember-utils';
+import {
+  Namespace,
+  RegistryProxyMixin,
+  Controller
+} from 'ember-runtime';
+import {
+  Registry,
+  privatize as P
+} from 'container';
 import DAG from 'dag-map';
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import { assert, deprecate } from 'ember-metal/debug';
-import { canInvoke } from 'ember-metal/utils';
-import EmptyObject from 'ember-metal/empty_object';
-import DefaultResolver from 'ember-application/system/resolver';
+import { assert, deprecate } from 'ember-debug';
+import { get, set } from 'ember-metal';
+import DefaultResolver from './resolver';
 import EngineInstance from './engine-instance';
+import { RoutingService } from 'ember-routing';
+import { ContainerDebugAdapter } from 'ember-extension-support';
+import { ComponentLookup } from 'ember-views';
+import { setupEngineRegistry } from 'ember-glimmer';
 
 function props(obj) {
-  var properties = [];
+  let properties = [];
 
-  for (var key in obj) {
+  for (let key in obj) {
     properties.push(key);
   }
 
@@ -41,7 +49,7 @@ function props(obj) {
   @uses RegistryProxy
   @public
 */
-const Engine = Namespace.extend(RegistryProxy, {
+const Engine = Namespace.extend(RegistryProxyMixin, {
   init() {
     this._super(...arguments);
 
@@ -49,26 +57,48 @@ const Engine = Namespace.extend(RegistryProxy, {
   },
 
   /**
-    Create an EngineInstance for this application.
+    A private flag indicating whether an engine's initializers have run yet.
+
+    @private
+    @property _initializersRan
+  */
+  _initializersRan: false,
+
+  /**
+    Ensure that initializers are run once, and only once, per engine.
+
+    @private
+    @method ensureInitializers
+  */
+  ensureInitializers() {
+    if (!this._initializersRan) {
+      this.runInitializers();
+      this._initializersRan = true;
+    }
+  },
+
+  /**
+    Create an EngineInstance for this engine.
 
     @private
     @method buildInstance
-    @return {Ember.EngineInstance} the application instance
+    @return {Ember.EngineInstance} the engine instance
   */
   buildInstance(options = {}) {
+    this.ensureInitializers();
     options.base = this;
     return EngineInstance.create(options);
   },
 
   /**
-    Build and configure the registry for the current application.
+    Build and configure the registry for the current engine.
 
     @private
     @method buildRegistry
     @return {Ember.Registry} the configured registry
   */
   buildRegistry() {
-    var registry = this.__registry__ = this.constructor.buildRegistry(this);
+    let registry = this.__registry__ = this.constructor.buildRegistry(this);
 
     return registry;
   },
@@ -95,15 +125,14 @@ const Engine = Namespace.extend(RegistryProxy, {
   */
   runInitializers() {
     this._runInitializer('initializers', (name, initializer) => {
-      assert('No application initializer named \'' + name + '\'', !!initializer);
+      assert(`No application initializer named '${name}'`, !!initializer);
       if (initializer.initialize.length === 2) {
-        deprecate('The `initialize` method for Application initializer \'' + name + '\' should take only one argument - `App`, an instance of an `Application`.',
-                  false,
-                  {
-                    id: 'ember-application.app-initializer-initialize-arguments',
-                    until: '3.0.0',
-                    url: 'http://emberjs.com/deprecations/v2.x/#toc_initializer-arity'
-                  });
+        deprecate(`The \`initialize\` method for Application initializer '${name}' should take only one argument - \`App\`, an instance of an \`Application\`.`,
+          false, {
+            id: 'ember-application.app-initializer-initialize-arguments',
+            until: '3.0.0',
+            url: 'https://emberjs.com/deprecations/v2.x/#toc_initializer-arity'
+          });
 
         initializer.initialize(this.__registry__, this);
       } else {
@@ -119,31 +148,29 @@ const Engine = Namespace.extend(RegistryProxy, {
   */
   runInstanceInitializers(instance) {
     this._runInitializer('instanceInitializers', (name, initializer) => {
-      assert('No instance initializer named \'' + name + '\'', !!initializer);
+      assert(`No instance initializer named '${name}'`, !!initializer);
       initializer.initialize(instance);
     });
   },
 
   _runInitializer(bucketName, cb) {
-    var initializersByName = get(this.constructor, bucketName);
-    var initializers = props(initializersByName);
-    var graph = new DAG();
-    var initializer;
+    let initializersByName = get(this.constructor, bucketName);
+    let initializers = props(initializersByName);
+    let graph = new DAG();
+    let initializer;
 
-    for (var i = 0; i < initializers.length; i++) {
+    for (let i = 0; i < initializers.length; i++) {
       initializer = initializersByName[initializers[i]];
-      graph.addEdges(initializer.name, initializer, initializer.before, initializer.after);
+      graph.add(initializer.name, initializer, initializer.before, initializer.after);
     }
 
-    graph.topsort(function (vertex) {
-      cb(vertex.name, vertex.value);
-    });
+    graph.topsort(cb);
   }
 });
 
 Engine.reopenClass({
-  initializers: new EmptyObject(),
-  instanceInitializers: new EmptyObject(),
+  initializers: Object.create(null),
+  instanceInitializers: Object.create(null),
 
   /**
     The goal of initializers should be to register dependencies and injections.
@@ -348,20 +375,24 @@ Engine.reopenClass({
     * the application view receives the application template as its
       `defaultTemplate` property
 
-    @private
     @method buildRegistry
     @static
     @param {Ember.Application} namespace the application for which to
       build the registry
     @return {Ember.Registry} the built registry
-    @public
+    @private
   */
-  buildRegistry(namespace) {
-    var registry = new Registry({
+  buildRegistry(namespace, options = {}) {
+    let registry = new Registry({
       resolver: resolverFor(namespace)
     });
 
     registry.set = set;
+
+    registry.register('application:main', namespace, { instantiate: false });
+
+    commonSetupRegistry(registry);
+    setupEngineRegistry(registry);
 
     return registry;
   },
@@ -405,7 +436,7 @@ function resolverFor(namespace) {
   let ResolverClass = namespace.get('Resolver') || DefaultResolver;
 
   return ResolverClass.create({
-    namespace: namespace
+    namespace
   });
 }
 
@@ -416,17 +447,55 @@ function buildInitializerMethod(bucketName, humanName) {
     // prototypal inheritance. Without this, attempting to add initializers to the subclass would
     // pollute the parent class as well as other subclasses.
     if (this.superclass[bucketName] !== undefined && this.superclass[bucketName] === this[bucketName]) {
-      var attrs = {};
+      let attrs = {};
       attrs[bucketName] = Object.create(this[bucketName]);
       this.reopenClass(attrs);
     }
 
-    assert('The ' + humanName + ' \'' + initializer.name + '\' has already been registered', !this[bucketName][initializer.name]);
-    assert('An ' + humanName + ' cannot be registered without an initialize function', canInvoke(initializer, 'initialize'));
-    assert('An ' + humanName + ' cannot be registered without a name property', initializer.name !== undefined);
+    assert(`The ${humanName} '${initializer.name}' has already been registered`, !this[bucketName][initializer.name]);
+    assert(`An ${humanName} cannot be registered without an initialize function`, canInvoke(initializer, 'initialize'));
+    assert(`An ${humanName} cannot be registered without a name property`, initializer.name !== undefined);
 
     this[bucketName][initializer.name] = initializer;
   };
+}
+
+function commonSetupRegistry(registry) {
+  registry.optionsForType('component', { singleton: false });
+  registry.optionsForType('view', { singleton: false });
+
+  registry.register('controller:basic', Controller, { instantiate: false });
+
+  registry.injection('view', '_viewRegistry', '-view-registry:main');
+  registry.injection('renderer', '_viewRegistry', '-view-registry:main');
+  registry.injection('event_dispatcher:main', '_viewRegistry', '-view-registry:main');
+
+  registry.injection('route', '_topLevelViewTemplate', 'template:-outlet');
+
+  registry.injection('view:-outlet', 'namespace', 'application:main');
+
+  registry.injection('controller', 'target', 'router:main');
+  registry.injection('controller', 'namespace', 'application:main');
+
+  registry.injection('router', '_bucketCache', P`-bucket-cache:main`);
+  registry.injection('route', '_bucketCache', P`-bucket-cache:main`);
+
+  registry.injection('route', 'router', 'router:main');
+
+  // Register the routing service...
+  registry.register('service:-routing', RoutingService);
+  // Then inject the app router into it
+  registry.injection('service:-routing', 'router', 'router:main');
+
+  // DEBUGGING
+  registry.register('resolver-for-debugging:main', registry.resolver, { instantiate: false });
+  registry.injection('container-debug-adapter:main', 'resolver', 'resolver-for-debugging:main');
+  registry.injection('data-adapter:main', 'containerDebugAdapter', 'container-debug-adapter:main');
+  // Custom resolver authors may want to register their own ContainerDebugAdapter with this key
+
+  registry.register('container-debug-adapter:main', ContainerDebugAdapter);
+
+  registry.register('component-lookup:main', ComponentLookup);
 }
 
 export default Engine;

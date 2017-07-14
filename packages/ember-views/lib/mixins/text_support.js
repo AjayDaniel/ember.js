@@ -3,10 +3,12 @@
 @submodule ember-views
 */
 
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import { Mixin } from 'ember-metal/mixin';
-import TargetActionSupport from 'ember-runtime/mixins/target_action_support';
+import {
+  get,
+  set,
+  Mixin
+} from 'ember-metal';
+import { TargetActionSupport } from 'ember-runtime';
 
 const KEY_EVENTS = {
   13: 'insertNewline',
@@ -17,7 +19,7 @@ const KEY_EVENTS = {
   `TextSupport` is a shared mixin used by both `Ember.TextField` and
   `Ember.TextArea`. `TextSupport` adds a number of methods that allow you to
   specify a controller action to invoke when a certain event is fired on your
-  text field or textarea. The specifed controller action would get the current
+  text field or textarea. The specified controller action would get the current
   value of the field passed in as the only argument unless the value of
   the field is empty. In that case, the instance of the field itself is passed
   in as the only argument.
@@ -111,7 +113,7 @@ const KEY_EVENTS = {
   @extends Ember.Mixin
   @private
 */
-var TextSupport = Mixin.create(TargetActionSupport, {
+export default Mixin.create(TargetActionSupport, {
   value: '',
 
   attributeBindings: [
@@ -121,6 +123,7 @@ var TextSupport = Mixin.create(TargetActionSupport, {
     'disabled',
     'form',
     'maxlength',
+    'minlength',
     'placeholder',
     'readonly',
     'required',
@@ -188,17 +191,15 @@ var TextSupport = Mixin.create(TargetActionSupport, {
   bubbles: false,
 
   interpretKeyEvents(event) {
-    var map = KEY_EVENTS;
-    var method = map[event.keyCode];
+    let map = KEY_EVENTS;
+    let method = map[event.keyCode];
 
     this._elementValueDidChange();
     if (method) { return this[method](event); }
   },
 
   _elementValueDidChange() {
-    // Using readDOMAttr will ensure that HTMLBars knows the last
-    // value.
-    set(this, 'value', this.readDOMAttr('value'));
+    set(this, 'value', this.element.value);
   },
 
   change(event) {
@@ -334,9 +335,9 @@ var TextSupport = Mixin.create(TargetActionSupport, {
 // sendAction semantics for TextField are different from
 // the component semantics so this method normalizes them.
 function sendAction(eventName, view, event) {
-  var action = get(view, 'attrs.' + eventName) || get(view, eventName);
-  var on = get(view, 'onEvent');
-  var value = get(view, 'value');
+  let action = get(view, `attrs.${eventName}`) || get(view, eventName);
+  let on = get(view, 'onEvent');
+  let value = get(view, 'value');
 
   // back-compat support for keyPress as an event name even though
   // it's also a method name that consumes the event (and therefore
@@ -353,5 +354,3 @@ function sendAction(eventName, view, event) {
     }
   }
 }
-
-export default TextSupport;

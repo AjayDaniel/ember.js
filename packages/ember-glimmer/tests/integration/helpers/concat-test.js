@@ -1,5 +1,5 @@
 import { RenderingTest, moduleFor } from '../../utils/test-case';
-import { set } from 'ember-metal/property_set';
+import { set } from 'ember-metal';
 
 moduleFor('Helpers test: {{concat}}', class extends RenderingTest {
 
@@ -9,9 +9,8 @@ moduleFor('Helpers test: {{concat}}', class extends RenderingTest {
   }
 
   ['@test it updates for bound arguments']() {
-    this.render(`{{concat first second}}`, {
-      first: 'one',
-      second: 'two'
+    this.render(`{{concat model.first model.second}}`, {
+      model: { first: 'one', second: 'two' }
     });
 
     this.assertText('onetwo');
@@ -20,21 +19,27 @@ moduleFor('Helpers test: {{concat}}', class extends RenderingTest {
 
     this.assertText('onetwo');
 
-    this.runTask(() => set(this.context, 'first', 'three'));
+    this.runTask(() => set(this.context, 'model.first', 'three'));
 
     this.assertText('threetwo');
 
-    this.runTask(() => set(this.context, 'second', 'four'));
+    this.runTask(() => set(this.context, 'model.second', 'four'));
 
     this.assertText('threefour');
+
+    this.runTask(() => set(this.context, 'model', { first: 'one', second: 'two' }));
+
+    this.assertText('onetwo');
   }
 
   ['@test it can be used as a sub-expression']() {
-    this.render(`{{concat (concat first second) (concat third fourth)}}`, {
-      first: 'one',
-      second: 'two',
-      third: 'three',
-      fourth: 'four'
+    this.render(`{{concat (concat model.first model.second) (concat model.third model.fourth)}}`, {
+      model: {
+        first: 'one',
+        second: 'two',
+        third: 'three',
+        fourth: 'four'
+      }
     });
 
     this.assertText('onetwothreefour');
@@ -43,20 +48,37 @@ moduleFor('Helpers test: {{concat}}', class extends RenderingTest {
 
     this.assertText('onetwothreefour');
 
+    this.runTask(() => set(this.context, 'model.first', 'five'));
+
+    this.assertText('fivetwothreefour');
+
     this.runTask(() => {
-      set(this.context, 'first', 'five');
-      set(this.context, 'third', 'six');
+      set(this.context, 'model.second', 'six');
+      set(this.context, 'model.third', 'seven');
     });
 
-    this.assertText('fivetwosixfour');
+    this.assertText('fivesixsevenfour');
+
+    this.runTask(() => {
+      set(this.context, 'model', {
+        first: 'one',
+        second: 'two',
+        third: 'three',
+        fourth: 'four'
+      });
+    });
+
+    this.assertText('onetwothreefour');
   }
 
   ['@test it can be used as input for other helpers']() {
     this.registerHelper('x-eq', ([ actual, expected]) => actual === expected);
 
-    this.render(`{{#if (x-eq (concat first second) "onetwo")}}Truthy!{{else}}False{{/if}}`, {
-      first: 'one',
-      second: 'two'
+    this.render(`{{#if (x-eq (concat model.first model.second) "onetwo")}}Truthy!{{else}}False{{/if}}`, {
+      model: {
+        first: 'one',
+        second: 'two'
+      }
     });
 
     this.assertText('Truthy!');
@@ -65,9 +87,12 @@ moduleFor('Helpers test: {{concat}}', class extends RenderingTest {
 
     this.assertText('Truthy!');
 
-    this.runTask(() => set(this.context, 'first', 'three'));
+    this.runTask(() => set(this.context, 'model.first', 'three'));
 
     this.assertText('False');
-  }
 
+    this.runTask(() => set(this.context, 'model', { first: 'one', second: 'two' }));
+
+    this.assertText('Truthy!');
+  }
 });

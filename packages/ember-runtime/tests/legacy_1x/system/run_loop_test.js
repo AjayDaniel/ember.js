@@ -1,8 +1,10 @@
-import {observer as emberObserver} from 'ember-metal/mixin';
-import run from 'ember-metal/run_loop';
-import {Binding} from 'ember-metal/binding';
-import Observable from 'ember-runtime/mixins/observable';
-import EmberObject from 'ember-runtime/system/object';
+import {
+  observer as emberObserver,
+  run,
+  Binding
+} from 'ember-metal';
+import Observable from '../../../mixins/observable';
+import EmberObject from '../../../system/object';
 
 /*
   NOTE: This test is adapted from the 1.x series of unit tests.  The tests
@@ -18,7 +20,7 @@ import EmberObject from 'ember-runtime/system/object';
     broken anyway.  I don't think it ever even worked.
 */
 
-var MyApp, binding1, binding2;
+let MyApp;
 
 QUnit.module('System:run_loop() - chained binding', {
   setup() {
@@ -42,18 +44,24 @@ QUnit.module('System:run_loop() - chained binding', {
   }
 });
 
+let deprecationMessage = /`Ember.Binding` is deprecated/;
+
 QUnit.test('Should propagate bindings after the RunLoop completes (using Ember.RunLoop)', function() {
-  run(function () {
+  run(() => {
     //Binding of output of MyApp.first object to input of MyApp.second object
-    binding1 = Binding.from('first.output')
-      .to('second.input').connect(MyApp);
+    expectDeprecation(() => {
+      Binding.from('first.output')
+        .to('second.input').connect(MyApp);
+    }, deprecationMessage);
 
     //Binding of output of MyApp.second object to input of MyApp.third object
-    binding2 = Binding.from('second.output')
-      .to('third.input').connect(MyApp);
+    expectDeprecation(() => {
+      Binding.from('second.output')
+        .to('third.input').connect(MyApp);
+    }, deprecationMessage);
   });
 
-  run(function () {
+  run(() => {
     // Based on the above binding if you change the output of MyApp.first
     // object it should change the all the variable of
     //  MyApp.first,MyApp.second and MyApp.third object
@@ -74,17 +82,21 @@ QUnit.test('Should propagate bindings after the RunLoop completes (using Ember.R
 });
 
 QUnit.test('Should propagate bindings after the RunLoop completes', function() {
-  run(function () {
+  run(() => {
     //Binding of output of MyApp.first object to input of MyApp.second object
-    binding1 = Binding.from('first.output')
-      .to('second.input').connect(MyApp);
+    expectDeprecation(() => {
+      Binding.from('first.output')
+        .to('second.input').connect(MyApp);
+    }, deprecationMessage);
 
     //Binding of output of MyApp.second object to input of MyApp.third object
-    binding2 = Binding.from('second.output')
-      .to('third.input').connect(MyApp);
+    expectDeprecation(() => {
+      Binding.from('second.output')
+        .to('third.input').connect(MyApp);
+    }, deprecationMessage);
   });
 
-  run(function () {
+  run(() => {
     //Based on the above binding if you change the output of MyApp.first object it should
     //change the all the variable of MyApp.first,MyApp.second and MyApp.third object
     MyApp.first.set('output', 'change');

@@ -3,21 +3,18 @@
 @submodule ember-views
 */
 
-import { assert } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import isNone from 'ember-metal/is_none';
-import run from 'ember-metal/run_loop';
-import EmberObject from 'ember-runtime/system/object';
-import jQuery from 'ember-views/system/jquery';
-import ActionManager from 'ember-views/system/action_manager';
-import View from 'ember-views/views/view';
-import assign from 'ember-metal/assign';
-import { getOwner } from 'container/owner';
-import environment from 'ember-metal/environment';
+import { assign, getOwner } from 'ember-utils';
+import { assert } from 'ember-debug';
+import { get, set, isNone, run } from 'ember-metal';
+import { deprecate } from 'ember-debug';
+import { Object as EmberObject } from 'ember-runtime';
+import jQuery from './jquery';
+import ActionManager from './action_manager';
+import { environment } from 'ember-environment';
+import fallbackViewRegistry from '../compat/fallback-view-registry';
 
-let ROOT_ELEMENT_CLASS = 'ember-application';
-let ROOT_ELEMENT_SELECTOR = '.' + ROOT_ELEMENT_CLASS;
+const ROOT_ELEMENT_CLASS = 'ember-application';
+const ROOT_ELEMENT_SELECTOR = `.${ROOT_ELEMENT_CLASS}`;
 
 /**
   `Ember.EventDispatcher` handles delegating browser events to their
@@ -40,7 +37,7 @@ export default EmberObject.extend({
     To add new events to be listened to:
 
     ```javascript
-    var App = Ember.Application.create({
+    let App = Ember.Application.create({
       customEvents: {
         paste: 'paste'
       }
@@ -50,7 +47,7 @@ export default EmberObject.extend({
     To prevent default events from being listened to:
 
     ```javascript
-    var App = Ember.Application.create({
+    let App = Ember.Application.create({
       customEvents: {
         mouseenter: null,
         mouseleave: null
@@ -62,33 +59,33 @@ export default EmberObject.extend({
     @private
   */
   events: {
-    touchstart  : 'touchStart',
-    touchmove   : 'touchMove',
-    touchend    : 'touchEnd',
-    touchcancel : 'touchCancel',
-    keydown     : 'keyDown',
-    keyup       : 'keyUp',
-    keypress    : 'keyPress',
-    mousedown   : 'mouseDown',
-    mouseup     : 'mouseUp',
-    contextmenu : 'contextMenu',
-    click       : 'click',
-    dblclick    : 'doubleClick',
-    mousemove   : 'mouseMove',
-    focusin     : 'focusIn',
-    focusout    : 'focusOut',
-    mouseenter  : 'mouseEnter',
-    mouseleave  : 'mouseLeave',
-    submit      : 'submit',
-    input       : 'input',
-    change      : 'change',
-    dragstart   : 'dragStart',
-    drag        : 'drag',
-    dragenter   : 'dragEnter',
-    dragleave   : 'dragLeave',
-    dragover    : 'dragOver',
-    drop        : 'drop',
-    dragend     : 'dragEnd'
+    touchstart:  'touchStart',
+    touchmove:   'touchMove',
+    touchend:    'touchEnd',
+    touchcancel: 'touchCancel',
+    keydown:     'keyDown',
+    keyup:       'keyUp',
+    keypress:    'keyPress',
+    mousedown:   'mouseDown',
+    mouseup:     'mouseUp',
+    contextmenu: 'contextMenu',
+    click:       'click',
+    dblclick:    'doubleClick',
+    mousemove:   'mouseMove',
+    focusin:     'focusIn',
+    focusout:    'focusOut',
+    mouseenter:  'mouseEnter',
+    mouseleave:  'mouseLeave',
+    submit:      'submit',
+    input:       'input',
+    change:      'change',
+    dragstart:   'dragStart',
+    drag:        'drag',
+    dragenter:   'dragEnter',
+    dragleave:   'dragLeave',
+    dragover:    'dragOver',
+    drop:        'drop',
+    dragend:     'dragEnd'
   },
 
   /**
@@ -117,7 +114,7 @@ export default EmberObject.extend({
     `eventManager` on the view tree.
 
     ```javascript
-    var EventDispatcher = Em.EventDispatcher.extend({
+    let EventDispatcher = Em.EventDispatcher.extend({
       events: {
           click       : 'click',
           focusin     : 'focusIn',
@@ -131,15 +128,24 @@ export default EmberObject.extend({
 
     @property canDispatchToEventManager
     @type boolean
-    @default 'true'
+    @default false
     @since 1.7.0
+    @deprecated
     @private
   */
-  canDispatchToEventManager: true,
 
   init() {
     this._super();
     assert('EventDispatcher should never be instantiated in fastboot mode. Please report this as an Ember bug.', environment.hasDOM);
+
+    deprecate(
+      `\`canDispatchToEventManager\` has been deprecated in ${this}.`,
+      !('canDispatchToEventManager' in this),
+      {
+        id: 'ember-views.event-dispatcher.canDispatchToEventManager',
+        until: '2.17.0'
+      }
+    );
   },
 
   /**
@@ -155,14 +161,16 @@ export default EmberObject.extend({
     @param addedEvents {Object}
   */
   setup(addedEvents, rootElement) {
-    var event;
-    var events = this._finalEvents = assign({}, get(this, 'events'), addedEvents);
+    let event;
+    let events = this._finalEvents = assign({}, get(this, 'events'), addedEvents);
 
-    if (!isNone(rootElement)) {
+    if (isNone(rootElement)) {
+      rootElement = get(this, 'rootElement');
+    } else {
       set(this, 'rootElement', rootElement);
     }
 
-    rootElement = jQuery(get(this, 'rootElement'));
+    rootElement = jQuery(rootElement);
 
     assert(`You cannot use the same root element (${rootElement.selector || rootElement[0].tagName}) multiple times in an Ember.Application`, !rootElement.is(ROOT_ELEMENT_SELECTOR));
     assert('You cannot make a new Ember.Application using a root element that is a descendent of an existing Ember.Application', !rootElement.closest(ROOT_ELEMENT_SELECTOR).length);
@@ -170,11 +178,15 @@ export default EmberObject.extend({
 
     rootElement.addClass(ROOT_ELEMENT_CLASS);
 
-    assert(`Unable to add '${ROOT_ELEMENT_CLASS}' class to rootElement. Make sure you set rootElement to the body or an element in the body.`, rootElement.is(ROOT_ELEMENT_SELECTOR));
+    if (!rootElement.is(ROOT_ELEMENT_SELECTOR)) {
+      throw new TypeError(`Unable to add '${ROOT_ELEMENT_CLASS}' class to root element (${rootElement.selector || rootElement[0].tagName}). Make sure you set rootElement to the body or an element in the body.`);
+    }
+
+    let viewRegistry = this._getViewRegistry();
 
     for (event in events) {
       if (events.hasOwnProperty(event)) {
-        this.setupHandler(rootElement, event, events[event]);
+        this.setupHandler(rootElement, event, events[event], viewRegistry);
       }
     }
   },
@@ -192,22 +204,20 @@ export default EmberObject.extend({
     @param {Element} rootElement
     @param {String} event the browser-originated event to listen to
     @param {String} eventName the name of the method to call on the view
+    @param {Object} viewRegistry
   */
-  setupHandler(rootElement, event, eventName) {
-    var self = this;
-
-    let owner = getOwner(this);
-    let viewRegistry = owner && owner.lookup('-view-registry:main') || View.views;
+  setupHandler(rootElement, event, eventName, viewRegistry) {
+    let self = this;
 
     if (eventName === null) {
       return;
     }
 
-    rootElement.on(event + '.ember', '.ember-view', function(evt, triggeringManager) {
-      var view = viewRegistry[this.id];
-      var result = true;
+    rootElement.on(`${event}.ember`, '.ember-view', function(evt, triggeringManager) {
+      let view = viewRegistry[this.id];
+      let result = true;
 
-      var manager = self.canDispatchToEventManager ? self._findNearestEventManager(view, eventName) : null;
+      let manager = self.canDispatchToEventManager ? self._findNearestEventManager(view, eventName) : null;
 
       if (manager && manager !== triggeringManager) {
         result = self._dispatchEvent(manager, evt, eventName, view);
@@ -218,29 +228,41 @@ export default EmberObject.extend({
       return result;
     });
 
-    rootElement.on(event + '.ember', '[data-ember-action]', function(evt) {
-      var actionId = jQuery(evt.currentTarget).attr('data-ember-action');
-      var actions   = ActionManager.registeredActions[actionId];
+    rootElement.on(`${event}.ember`, '[data-ember-action]', evt => {
+      let attributes = evt.currentTarget.attributes;
+      let handledActions = [];
 
-      // We have to check for actions here since in some cases, jQuery will trigger
-      // an event on `removeChild` (i.e. focusout) after we've already torn down the
-      // action handlers for the view.
-      if (!actions) {
-        return;
-      }
+      for (let i = 0; i < attributes.length; i++) {
+        let attr = attributes.item(i);
+        let attrName = attr.name;
 
-      for (let index = 0, length = actions.length; index < length; index++) {
-        let action = actions[index];
+        if (attrName.lastIndexOf('data-ember-action-', 0) !== -1) {
+          let action = ActionManager.registeredActions[attr.value];
 
-        if (action && action.eventName === eventName) {
-          return action.handler(evt);
+          // We have to check for action here since in some cases, jQuery will trigger
+          // an event on `removeChild` (i.e. focusout) after we've already torn down the
+          // action handlers for the view.
+          if (action && action.eventName === eventName && handledActions.indexOf(action) === -1) {
+            action.handler(evt);
+            // Action handlers can mutate state which in turn creates new attributes on the element.
+            // This effect could cause the `data-ember-action` attribute to shift down and be invoked twice.
+            // To avoid this, we keep track of which actions have been handled.
+            handledActions.push(action);
+          }
         }
       }
     });
   },
 
+  _getViewRegistry() {
+    let owner = getOwner(this);
+    let viewRegistry = owner && owner.lookup('-view-registry:main') || fallbackViewRegistry;
+
+    return viewRegistry;
+  },
+
   _findNearestEventManager(view, eventName) {
-    var manager = null;
+    let manager = null;
 
     while (view) {
       manager = get(view, 'eventManager');
@@ -253,9 +275,9 @@ export default EmberObject.extend({
   },
 
   _dispatchEvent(object, evt, eventName, view) {
-    var result = true;
+    let result = true;
 
-    var handler = object[eventName];
+    let handler = object[eventName];
     if (typeof handler === 'function') {
       result = run(object, handler, evt, view);
       // Do not preventDefault in eventManagers.
@@ -272,7 +294,7 @@ export default EmberObject.extend({
   },
 
   destroy() {
-    var rootElement = get(this, 'rootElement');
+    let rootElement = get(this, 'rootElement');
     jQuery(rootElement).off('.ember', '**').removeClass(ROOT_ELEMENT_CLASS);
     return this._super(...arguments);
   },

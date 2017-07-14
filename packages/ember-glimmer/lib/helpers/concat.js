@@ -1,6 +1,9 @@
+import { InternalHelperReference } from '../utils/references';
+import { normalizeTextValue } from '@glimmer/runtime';
+
 /**
 @module ember
-@submodule ember-templates
+@submodule ember-glimmer
 */
 
 /**
@@ -19,6 +22,10 @@
   @for Ember.Templates.helpers
   @since 1.13.0
 */
-export default function concat(args) {
-  return args.join('');
+function concat({ positional }) {
+  return positional.value().map(normalizeTextValue).join('');
+}
+
+export default function(vm, args) {
+  return new InternalHelperReference(concat, args.capture());
 }

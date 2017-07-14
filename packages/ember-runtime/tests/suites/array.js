@@ -1,17 +1,17 @@
 import {
   EnumerableTests,
   ObserverClass as EnumerableTestsObserverClass
-} from 'ember-runtime/tests/suites/enumerable';
-import indexOfTests from 'ember-runtime/tests/suites/array/indexOf';
-import lastIndexOfTests from 'ember-runtime/tests/suites/array/lastIndexOf';
-import objectAtTests from 'ember-runtime/tests/suites/array/objectAt';
+} from './enumerable';
+import indexOfTests from './array/indexOf';
+import lastIndexOfTests from './array/lastIndexOf';
+import objectAtTests from './array/objectAt';
+import includesTests from './array/includes';
 import {
   addArrayObserver,
   removeArrayObserver
-} from 'ember-runtime/mixins/array';
+} from '../../mixins/array';
 
-var ObserverClass = EnumerableTestsObserverClass.extend({
-
+const ObserverClass = EnumerableTestsObserverClass.extend({
   observeArray(obj) {
     addArrayObserver(obj, this);
     return this;
@@ -31,13 +31,10 @@ var ObserverClass = EnumerableTestsObserverClass.extend({
     equal(this._after, null, 'should only call once');
     this._after = Array.prototype.slice.call(arguments);
   }
-
 });
 
-var ArrayTests = EnumerableTests.extend({
-
+const ArrayTests = EnumerableTests.extend({
   observerClass: ObserverClass
-
 });
 
 ArrayTests.ObserverClass = ObserverClass;
@@ -46,4 +43,6 @@ ArrayTests.importModuleTests(indexOfTests);
 ArrayTests.importModuleTests(lastIndexOfTests);
 ArrayTests.importModuleTests(objectAtTests);
 
-export {ArrayTests, ObserverClass};
+ArrayTests.importModuleTests(includesTests);
+
+export { ArrayTests, ObserverClass };

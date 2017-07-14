@@ -1,9 +1,16 @@
-import Ember from 'ember-metal/core';
-import { set, trySet } from 'ember-metal/property_set';
-import { get } from 'ember-metal/property_get';
+import { context } from 'ember-environment';
+import {
+  set,
+  trySet,
+  get
+} from '../..';
 
-var obj;
+let originalLookup = context.lookup;
+let lookup;
+
+let obj;
 function commonSetup() {
+  context.lookup = lookup = {};
   obj = {
     foo: {
       bar: {
@@ -14,6 +21,7 @@ function commonSetup() {
 }
 
 function commonTeardown() {
+  context.lookup = originalLookup;
   obj = null;
 }
 
@@ -23,10 +31,10 @@ QUnit.module('set with path', {
 });
 
 QUnit.test('[Foo, bar] -> Foo.bar', function() {
-  Ember.lookup.Foo = { toString() { return 'Foo'; } }; // Behave like an Ember.Namespace
+  lookup.Foo = { toString() { return 'Foo'; } }; // Behave like an Ember.Namespace
 
-  set(Ember.lookup.Foo, 'bar', 'baz');
-  equal(get(Ember.lookup.Foo, 'bar'), 'baz');
+  set(lookup.Foo, 'bar', 'baz');
+  equal(get(lookup.Foo, 'bar'), 'baz');
 });
 
 // ..........................................................
@@ -53,18 +61,16 @@ QUnit.module('set with path - deprecated', {
 });
 
 QUnit.test('[obj, bla.bla] gives a proper exception message', function() {
-  var exceptionMessage = 'Property set failed: object in path \"bla\" could not be found or was destroyed.';
+  let exceptionMessage = 'Property set failed: object in path \"bla\" could not be found or was destroyed.';
   try {
     set(obj, 'bla.bla', 'BAM');
-  } catch(ex) {
+  } catch (ex) {
     equal(ex.message, exceptionMessage);
   }
 });
 
 QUnit.test('[obj, foo.baz.bat] -> EXCEPTION', function() {
-  throws(function() {
-    set(obj, 'foo.baz.bat', 'BAM');
-  }, Error);
+  throws(() => set(obj, 'foo.baz.bat', 'BAM'));
 });
 
 QUnit.test('[obj, foo.baz.bat] -> EXCEPTION', function() {

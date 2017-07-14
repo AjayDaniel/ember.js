@@ -2,17 +2,26 @@
 @module ember
 @submodule ember-runtime
 */
+import { guidFor } from 'ember-utils';
+import Ember, {
+  get,
+  Mixin,
+  hasUnprocessedMixins,
+  clearUnprocessedMixins,
+} from 'ember-metal'; // Preloaded into namespaces
+import { context } from 'ember-environment';
+import { NAME_KEY } from 'ember-utils';
+import EmberObject from './object';
 
-// Ember.lookup, Ember.BOOTED, Ember.NAME_KEY, Ember.anyUnprocessedMixins
-import Ember from 'ember-metal/core';
-import { get } from 'ember-metal/property_get';
-import {
-  GUID_KEY,
-  guidFor
-} from 'ember-metal/utils';
-import { Mixin } from 'ember-metal/mixin';
+let searchDisabled = false;
 
-import EmberObject from 'ember-runtime/system/object';
+export function isSearchDisabled() {
+  return searchDisabled;
+}
+
+export function setSearchDisabled(flag) {
+  searchDisabled = !!flag;
+}
 
 /**
   A Namespace is an object usually used to contain other objects or methods
@@ -32,7 +41,7 @@ import EmberObject from 'ember-runtime/system/object';
   @extends Ember.Object
   @public
 */
-var Namespace = EmberObject.extend({
+const Namespace = EmberObject.extend({
   isNamespace: true,
 
   init() {
@@ -41,7 +50,7 @@ var Namespace = EmberObject.extend({
   },
 
   toString() {
-    var name = get(this, 'name') || get(this, 'modulePrefix');
+    let name = get(this, 'name') || get(this, 'modulePrefix');
     if (name) { return name; }
 
     findNamespaces();
@@ -53,11 +62,11 @@ var Namespace = EmberObject.extend({
   },
 
   destroy() {
-    var namespaces = Namespace.NAMESPACES;
-    var toString = this.toString();
+    let namespaces = Namespace.NAMESPACES;
+    let toString = this.toString();
 
     if (toString) {
-      Ember.lookup[toString] = undefined;
+      context.lookup[toString] = undefined;
       delete Namespace.NAMESPACES_BY_ID[toString];
     }
     namespaces.splice(namespaces.indexOf(this), 1);
@@ -67,11 +76,13 @@ var Namespace = EmberObject.extend({
 
 Namespace.reopenClass({
   NAMESPACES: [Ember],
-  NAMESPACES_BY_ID: {},
+  NAMESPACES_BY_ID: {
+    Ember
+  },
   PROCESSED: false,
   processAll: processAllNamespaces,
   byName(name) {
-    if (!Ember.BOOTED) {
+    if (!searchDisabled) {
       processAllNamespaces();
     }
 
@@ -79,19 +90,19 @@ Namespace.reopenClass({
   }
 });
 
-var NAMESPACES_BY_ID = Namespace.NAMESPACES_BY_ID;
+let NAMESPACES_BY_ID = Namespace.NAMESPACES_BY_ID;
 
-var hasOwnProp = ({}).hasOwnProperty;
+let hasOwnProp = ({}).hasOwnProperty;
 
 function processNamespace(paths, root, seen) {
-  var idx = paths.length;
+  let idx = paths.length;
 
   NAMESPACES_BY_ID[paths.join('.')] = root;
 
   // Loop over all of the keys in the namespace, looking for classes
-  for (var key in root) {
+  for (let key in root) {
     if (!hasOwnProp.call(root, key)) { continue; }
-    var obj = root[key];
+    let obj = root[key];
 
     // If we are processing the `Ember` namespace, for example, the
     // `paths` will start with `["Ember"]`. Every iteration through
@@ -120,11 +131,14 @@ function processNamespace(paths, root, seen) {
   paths.length = idx; // cut out last item
 }
 
-var STARTS_WITH_UPPERCASE = /^[A-Z]/;
+function isUppercase(code) {
+  return code >= 65 && // A
+         code <= 90;   // Z
+}
 
 function tryIsNamespace(lookup, prop) {
   try {
-    var obj = lookup[prop];
+    let obj = lookup[prop];
     return obj && obj.isNamespace && obj;
   } catch (e) {
     // continue
@@ -132,69 +146,65 @@ function tryIsNamespace(lookup, prop) {
 }
 
 function findNamespaces() {
-  var lookup = Ember.lookup;
-  var obj;
-
-  if (Namespace.PROCESSED) { return; }
-
-  for (var prop in lookup) {
+  if (Namespace.PROCESSED) {
+    return;
+  }
+  let lookup = context.lookup;
+  let keys = Object.keys(lookup);
+  for (let i = 0; i < keys.length; i++) {
+    let key = keys[i];
     // Only process entities that start with uppercase A-Z
-    if (!STARTS_WITH_UPPERCASE.test(prop)) { continue; }
-
-    // Unfortunately, some versions of IE don't support window.hasOwnProperty
-    if (lookup.hasOwnProperty && !lookup.hasOwnProperty(prop)) { continue; }
-
-    // At times we are not allowed to access certain properties for security reasons.
-    // There are also times where even if we can access them, we are not allowed to access their properties.
-    obj = tryIsNamespace(lookup, prop);
+    if (!isUppercase(key.charCodeAt(0))) {
+      continue;
+    }
+    let obj = tryIsNamespace(lookup, key);
     if (obj) {
-      obj[NAME_KEY] = prop;
+      obj[NAME_KEY] = key;
     }
   }
 }
 
-var NAME_KEY = Ember.NAME_KEY = GUID_KEY + '_name';
-
 function superClassString(mixin) {
-  var superclass = mixin.superclass;
+  let superclass = mixin.superclass;
   if (superclass) {
     if (superclass[NAME_KEY]) {
       return superclass[NAME_KEY];
-    } else {
-      return superClassString(superclass);
     }
+    return superClassString(superclass);
+  }
+}
+
+function calculateToString(target) {
+  let str;
+
+  if (!searchDisabled) {
+    processAllNamespaces();
+    // can also be set by processAllNamespaces
+    str = target[NAME_KEY];
+    if (str) {
+      return str;
+    } else {
+      str = superClassString(target);
+      str = str ? `(subclass of ${str})` : str;
+    }
+  }
+  if (str) {
+    return str;
   } else {
-    return;
+    return '(unknown mixin)';
   }
 }
 
 function classToString() {
-  if (!Ember.BOOTED && !this[NAME_KEY]) {
-    processAllNamespaces();
-  }
+  let name = this[NAME_KEY];
+  if (name) { return name; }
 
-  var ret;
-
-  if (this[NAME_KEY]) {
-    ret = this[NAME_KEY];
-  } else if (this._toString) {
-    ret = this._toString;
-  } else {
-    var str = superClassString(this);
-    if (str) {
-      ret = '(subclass of ' + str + ')';
-    } else {
-      ret = '(unknown mixin)';
-    }
-    this.toString = makeToString(ret);
-  }
-
-  return ret;
+  return (this[NAME_KEY] = calculateToString(this));
 }
 
 function processAllNamespaces() {
-  var unprocessedNamespaces = !Namespace.PROCESSED;
-  var unprocessedMixins = Ember.anyUnprocessedMixins;
+  let unprocessedNamespaces = !Namespace.PROCESSED;
+  let unprocessedMixins = hasUnprocessedMixins();
 
   if (unprocessedNamespaces) {
     findNamespaces();
@@ -202,20 +212,16 @@ function processAllNamespaces() {
   }
 
   if (unprocessedNamespaces || unprocessedMixins) {
-    var namespaces = Namespace.NAMESPACES;
-    var namespace;
+    let namespaces = Namespace.NAMESPACES;
+    let namespace;
 
-    for (var i = 0, l = namespaces.length; i < l; i++) {
+    for (let i = 0; i < namespaces.length; i++) {
       namespace = namespaces[i];
       processNamespace([namespace.toString()], namespace, {});
     }
 
-    Ember.anyUnprocessedMixins = false;
+    clearUnprocessedMixins();
   }
-}
-
-function makeToString(ret) {
-  return function() { return ret; };
 }
 
 Mixin.prototype.toString = classToString; // ES6TODO: altering imported objects. SBB.

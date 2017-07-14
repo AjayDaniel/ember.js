@@ -1,22 +1,23 @@
-import isEnabled from 'ember-metal/features';
-import run from 'ember-metal/run_loop';
-import { observer } from 'ember-metal/mixin';
-import { set } from 'ember-metal/property_set';
-import { bind } from 'ember-metal/binding';
 import {
+  run,
+  observer,
+  set,
+  bind,
   beginPropertyChanges,
-  endPropertyChanges
-} from 'ember-metal/property_events';
-import { testBoth } from 'ember-metal/tests/props_helper';
-import EmberObject from 'ember-runtime/system/object';
-import { peekMeta } from 'ember-metal/meta';
+  endPropertyChanges,
+  peekMeta
+} from 'ember-metal';
+import { testBoth } from 'internal-test-helpers';
+import EmberObject from '../../../system/object';
+import { MANDATORY_SETTER } from 'ember/features';
+
 QUnit.module('ember-runtime/system/object/destroy_test');
 
 testBoth('should schedule objects to be destroyed at the end of the run loop', function(get, set) {
-  var obj = EmberObject.create();
-  var meta;
+  let obj = EmberObject.create();
+  let meta;
 
-  run(function() {
+  run(() => {
     obj.destroy();
     meta = peekMeta(obj);
     ok(meta, 'meta is not destroyed immediately');
@@ -25,34 +26,29 @@ testBoth('should schedule objects to be destroyed at the end of the run loop', f
   });
 
   meta = peekMeta(obj);
-  ok(!meta, 'meta is destroyed after run loop finishes');
   ok(get(obj, 'isDestroyed'), 'object is destroyed after run loop finishes');
 });
 
-if (isEnabled('mandatory-setter')) {
+if (MANDATORY_SETTER) {
   // MANDATORY_SETTER moves value to meta.values
   // a destroyed object removes meta but leaves the accessor
   // that looks it up
   QUnit.test('should raise an exception when modifying watched properties on a destroyed object', function() {
-    var obj = EmberObject.extend({
+    let obj = EmberObject.extend({
       fooDidChange: observer('foo', function() { })
     }).create({
       foo: 'bar'
     });
 
-    run(function() {
-      obj.destroy();
-    });
+    run(() => obj.destroy());
 
-    throws(function() {
-      set(obj, 'foo', 'baz');
-    }, Error, 'raises an exception');
+    throws(() => set(obj, 'foo', 'baz'), Error, 'raises an exception');
   });
 }
 
 QUnit.test('observers should not fire after an object has been destroyed', function() {
-  var count = 0;
-  var obj = EmberObject.extend({
+  let count = 0;
+  let obj = EmberObject.extend({
     fooDidChange: observer('foo', function() {
       count++;
     })
@@ -62,7 +58,7 @@ QUnit.test('observers should not fire after an object has been destroyed', funct
 
   equal(count, 1, 'observer was fired once');
 
-  run(function() {
+  run(() => {
     beginPropertyChanges();
     obj.set('foo', 'quux');
     obj.destroy();
@@ -73,12 +69,12 @@ QUnit.test('observers should not fire after an object has been destroyed', funct
 });
 
 QUnit.test('destroyed objects should not see each others changes during teardown but a long lived object should', function () {
-  var shouldChange = 0;
-  var shouldNotChange = 0;
+  let shouldChange = 0;
+  let shouldNotChange = 0;
 
-  var objs = {};
+  let objs = {};
 
-  var A = EmberObject.extend({
+  let A = EmberObject.extend({
     objs: objs,
     isAlive: true,
     willDestroy() {
@@ -92,7 +88,7 @@ QUnit.test('destroyed objects should not see each others changes during teardown
     })
   });
 
-  var B = EmberObject.extend({
+  let B = EmberObject.extend({
     objs: objs,
     isAlive: true,
     willDestroy() {
@@ -106,7 +102,7 @@ QUnit.test('destroyed objects should not see each others changes during teardown
     })
   });
 
-  var C = EmberObject.extend({
+  let C = EmberObject.extend({
     objs: objs,
     isAlive: true,
     willDestroy() {
@@ -120,7 +116,7 @@ QUnit.test('destroyed objects should not see each others changes during teardown
     })
   });
 
-  var LongLivedObject =  EmberObject.extend({
+  let LongLivedObject =  EmberObject.extend({
     objs: objs,
     isAliveDidChange: observer('objs.a.isAlive', function () {
       shouldChange++;
@@ -135,9 +131,9 @@ QUnit.test('destroyed objects should not see each others changes during teardown
 
   new LongLivedObject();
 
-  run(function () {
-    var keys = Object.keys(objs);
-    for (var i = 0, l = keys.length; i < l; i++) {
+  run(() => {
+    let keys = Object.keys(objs);
+    for (let i = 0; i < keys.length; i++) {
       objs[keys[i]].destroy();
     }
   });
@@ -147,27 +143,29 @@ QUnit.test('destroyed objects should not see each others changes during teardown
 });
 
 QUnit.test('bindings should be synced when are updated in the willDestroy hook', function() {
-  var bar = EmberObject.create({
+  let bar = EmberObject.create({
     value: false,
     willDestroy() {
       this.set('value', true);
     }
   });
 
-  var foo = EmberObject.create({
+  let foo = EmberObject.create({
     value: null,
     bar: bar
   });
 
-  run(function() {
-    bind(foo, 'value', 'bar.value');
+  run(() => {
+    let deprecationMessage = /`Ember.Binding` is deprecated/;
+
+    expectDeprecation(() => {
+      bind(foo, 'value', 'bar.value');
+    }, deprecationMessage);
   });
 
   ok(bar.get('value') === false, 'the initial value has been bound');
 
-  run(function() {
-    bar.destroy();
-  });
+  run(() => bar.destroy());
 
   ok(foo.get('value'), 'foo is synced when the binding is updated in the willDestroy hook');
 });

@@ -182,7 +182,7 @@ for (var key in keys) {
   // code
 }
 
-for (var i = 0, l = keys.length; i < l; i++) {
+for (var i = 0; i < keys.length; i++) {
   // code
 }
 
@@ -192,7 +192,7 @@ while (true) {
 
 try {
   // code that throws an error
-} catch(e) {
+} catch (e) {
   // code that handles an error
 }
 ```

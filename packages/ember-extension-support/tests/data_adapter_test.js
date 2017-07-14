@@ -1,224 +1,237 @@
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import run from 'ember-metal/run_loop';
 import {
+  get,
+  set,
+  run,
   addObserver,
   removeObserver
-} from 'ember-metal/observer';
-import EmberObject from 'ember-runtime/system/object';
-import { A as emberA } from 'ember-runtime/system/native_array';
-import EmberDataAdapter from 'ember-extension-support/data_adapter';
-import EmberApplication from 'ember-application/system/application';
-import DefaultResolver from 'ember-application/system/resolver';
+} from 'ember-metal';
+import { Object as EmberObject, A as emberA } from 'ember-runtime';
+import EmberDataAdapter from '../data_adapter';
+import { moduleFor, ApplicationTestCase } from 'internal-test-helpers';
 
-var adapter, App;
-var Model = EmberObject.extend();
 
-var DataAdapter = EmberDataAdapter.extend({
+let adapter, App;
+const Model = EmberObject.extend();
+
+const PostClass = Model.extend();
+
+const DataAdapter = EmberDataAdapter.extend({
   detect(klass) {
     return klass !== Model && Model.detect(klass);
-  }
-});
-
-QUnit.module('Data Adapter', {
-  setup() {
-    run(function() {
-      App = EmberApplication.create();
-      App.toString = function() { return 'App'; };
-      App.deferReadiness();
-      App.register('data-adapter:main', DataAdapter);
-    });
   },
-  teardown() {
-    run(function() {
-      adapter.destroy();
-      App.destroy();
+  init() {
+    this._super(...arguments);
+    this.set('containerDebugAdapter', {
+      canCatalogEntriesByType(type) {
+        return true;
+      },
+      catalogEntriesByType(type) {
+        return emberA(['post']);
+      }
     });
   }
 });
 
-QUnit.test('Model types added with DefaultResolver', function() {
-  App.Post = Model.extend();
 
-  adapter = App.__container__.lookup('data-adapter:main');
-  adapter.reopen({
-    getRecords() {
-      return emberA([1, 2, 3]);
-    },
-    columnsForType() {
-      return [{ name: 'title', desc: 'Title' }];
-    }
-  });
+moduleFor('Data Adapter', class extends ApplicationTestCase {
 
-  run(App, 'advanceReadiness');
+  ['@test Model types added']() {
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords() {
+        return emberA([1, 2, 3]);
+      },
+      columnsForType() {
+        return [{ name: 'title', desc: 'Title' }];
+      }
+    }));
+    this.add('model:post', PostClass);
 
-  var modelTypesAdded = function(types) {
-    equal(types.length, 1);
-    var postType = types[0];
-    equal(postType.name, 'post', 'Correctly sets the name');
-    equal(postType.count, 3, 'Correctly sets the record count');
-    strictEqual(postType.object, App.Post, 'Correctly sets the object');
-    deepEqual(postType.columns, [{ name: 'title', desc: 'Title' }], 'Correctly sets the columns');
-  };
+    return this.visit('/').then(() => {
+      let adapter = this.applicationInstance.lookup('data-adapter:main');
 
-  adapter.watchModelTypes(modelTypesAdded);
-});
+      function modelTypesAdded(types) {
+        equal(types.length, 1);
+        let postType = types[0];
+        equal(postType.name, 'post', 'Correctly sets the name');
+        equal(postType.count, 3, 'Correctly sets the record count');
+        strictEqual(postType.object, PostClass, 'Correctly sets the object');
+        deepEqual(postType.columns, [{ name: 'title', desc: 'Title' }], 'Correctly sets the columns');
+      }
 
-QUnit.test('getRecords gets a model name as second argument', function() {
-  App.Post = Model.extend();
-
-  adapter = App.__container__.lookup('data-adapter:main');
-  adapter.reopen({
-    getRecords(klass, name) {
-      equal(name, 'post');
-      return emberA();
-    }
-  });
-
-  adapter.watchModelTypes(function() { });
-});
-
-QUnit.test('Model types added with custom container-debug-adapter', function() {
-  var PostClass = Model.extend();
-  var StubContainerDebugAdapter = DefaultResolver.extend({
-    canCatalogEntriesByType(type) {
-      return true;
-    },
-    catalogEntriesByType(type) {
-      return [PostClass];
-    }
-  });
-  App.register('container-debug-adapter:main', StubContainerDebugAdapter);
-
-  adapter = App.__container__.lookup('data-adapter:main');
-  adapter.reopen({
-    getRecords() {
-      return emberA([1, 2, 3]);
-    },
-    columnsForType() {
-      return [{ name: 'title', desc: 'Title' }];
-    }
-  });
-
-  run(App, 'advanceReadiness');
-
-  var modelTypesAdded = function(types) {
-    equal(types.length, 1);
-    var postType = types[0];
-
-    equal(postType.name, PostClass.toString(), 'Correctly sets the name');
-    equal(postType.count, 3, 'Correctly sets the record count');
-    strictEqual(postType.object, PostClass, 'Correctly sets the object');
-    deepEqual(postType.columns, [{ name: 'title', desc: 'Title' }], 'Correctly sets the columns');
-  };
-
-  adapter.watchModelTypes(modelTypesAdded);
-});
-
-QUnit.test('Model Types Updated', function() {
-  App.Post = Model.extend();
-
-  adapter = App.__container__.lookup('data-adapter:main');
-  var records = emberA([1, 2, 3]);
-  adapter.reopen({
-    getRecords() {
-      return records;
-    }
-  });
-
-  run(App, 'advanceReadiness');
-
-  var modelTypesAdded = function() {
-    run(function() {
-      records.pushObject(4);
+      adapter.watchModelTypes(modelTypesAdded);
     });
-  };
+  }
 
-  var modelTypesUpdated = function(types) {
-    var postType = types[0];
-    equal(postType.count, 4, 'Correctly updates the count');
-  };
+  ['@test getRecords gets a model name as second argument']() {
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords(klass, name) {
+        equal(name, 'post');
+        return emberA();
+      }
+    }));
+    this.add('model:post', PostClass);
 
-  adapter.watchModelTypes(modelTypesAdded, modelTypesUpdated);
-});
+    return this.visit('/').then(() => {
+      adapter = this.applicationInstance.lookup('data-adapter:main');
+      adapter.watchModelTypes(function() { });
+    });
+  }
 
-QUnit.test('Records Added', function() {
-  expect(8);
-  var countAdded = 1;
+  ['@test Model types added with custom container-debug-adapter']() {
+    let StubContainerDebugAdapter = EmberObject.extend({
+      canCatalogEntriesByType(type) {
+        return true;
+      },
+      catalogEntriesByType(type) {
+        return emberA(['post']);
+      }
+    });
+    this.add('container-debug-adapter:main', StubContainerDebugAdapter);
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords() {
+        return emberA([1, 2, 3]);
+      },
+      columnsForType() {
+        return [{ name: 'title', desc: 'Title' }];
+      }
+    }));
+    this.add('model:post', PostClass);
 
-  App.Post = Model.extend();
+    return this.visit('/').then(() => {
+      let adapter = this.applicationInstance.lookup('data-adapter:main');
 
-  var post = App.Post.create();
-  var recordList = emberA([post]);
+      function modelTypesAdded(types) {
+        equal(types.length, 1);
+        let postType = types[0];
+        equal(postType.name, 'post', 'Correctly sets the name');
+        equal(postType.count, 3, 'Correctly sets the record count');
+        strictEqual(postType.object, PostClass, 'Correctly sets the object');
+        deepEqual(postType.columns, [{ name: 'title', desc: 'Title' }], 'Correctly sets the columns');
+      }
 
-  adapter = App.__container__.lookup('data-adapter:main');
-  adapter.reopen({
-    getRecords() {
-      return recordList;
-    },
-    getRecordColor() {
-      return 'blue';
-    },
-    getRecordColumnValues() {
-      return { title: 'Post ' + countAdded };
-    },
-    getRecordKeywords() {
-      return ['Post ' + countAdded];
-    }
-  });
+      adapter.watchModelTypes(modelTypesAdded);
+    });
+  }
 
-  var recordsAdded = function(records) {
-    var record = records[0];
-    equal(record.color, 'blue', 'Sets the color correctly');
-    deepEqual(record.columnValues, { title: 'Post ' + countAdded }, 'Sets the column values correctly');
-    deepEqual(record.searchKeywords, ['Post ' + countAdded], 'Sets search keywords correctly');
-    strictEqual(record.object, post, 'Sets the object to the record instance');
-  };
+  ['@test Model Types Updated']() {
+    let records = emberA([1, 2, 3]);
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords(klass, name) {
+        return records;
+      }
+    }));
+    this.add('model:post', PostClass);
 
-  adapter.watchRecords(App.Post, recordsAdded);
-  countAdded++;
-  post = App.Post.create();
-  recordList.pushObject(post);
-});
+    return this.visit('/').then(() => {
+      adapter = this.applicationInstance.lookup('data-adapter:main');
 
-QUnit.test('Observes and releases a record correctly', function() {
-  var updatesCalled = 0;
-  App.Post = Model.extend();
+      function modelTypesAdded(types) {
+        run(() => {
+          records.pushObject(4);
+        });
+      }
 
-  var post = App.Post.create({ title: 'Post' });
-  var recordList = emberA([post]);
+      function modelTypesUpdated(types) {
+        let postType = types[0];
+        equal(postType.count, 4, 'Correctly updates the count');
+      }
 
-  adapter = App.__container__.lookup('data-adapter:main');
-  adapter.reopen({
-    getRecords() {
-      return recordList;
-    },
-    observeRecord(record, recordUpdated) {
-      var self = this;
-      var callback = function() {
-        recordUpdated(self.wrapRecord(record));
-      };
-      addObserver(record, 'title', callback);
-      return function() {
-        removeObserver(record, 'title', callback);
-      };
-    },
-    getRecordColumnValues(record) {
-      return { title: get(record, 'title') };
-    }
-  });
+      adapter.watchModelTypes(modelTypesAdded, modelTypesUpdated);
+    });
+  }
 
-  var recordsAdded = function() {
-    set(post, 'title', 'Post Modified');
-  };
+  ['@test Records Added']() {
+    let countAdded = 1;
+    let post = PostClass.create();
+    let recordList = emberA([post]);
 
-  var recordsUpdated = function(records) {
-    updatesCalled++;
-    equal(records[0].columnValues.title, 'Post Modified');
-  };
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords(klass, name) {
+        return recordList;
+      },
+      getRecordColor() {
+        return 'blue';
+      },
+      getRecordColumnValues() {
+        return { title: 'Post ' + countAdded };
+      },
+      getRecordKeywords() {
+        return ['Post ' + countAdded];
+      }
+    }));
+    this.add('model:post', PostClass);
 
-  var release = adapter.watchRecords(App.Post, recordsAdded, recordsUpdated);
-  release();
-  set(post, 'title', 'New Title');
-  equal(updatesCalled, 1, 'Release function removes observers');
+    return this.visit('/').then(() => {
+      adapter = this.applicationInstance.lookup('data-adapter:main');
+
+      function recordsAdded(records) {
+        let record = records[0];
+        equal(record.color, 'blue', 'Sets the color correctly');
+        deepEqual(record.columnValues, { title: 'Post ' + countAdded }, 'Sets the column values correctly');
+        deepEqual(record.searchKeywords, ['Post ' + countAdded], 'Sets search keywords correctly');
+        strictEqual(record.object, post, 'Sets the object to the record instance');
+      }
+
+      adapter.watchRecords('post', recordsAdded);
+      countAdded++;
+      post = PostClass.create();
+      recordList.pushObject(post);
+    });
+  }
+
+  ['@test Observes and releases a record correctly']() {
+    let updatesCalled = 0;
+    let post = PostClass.create({ title: 'Post' });
+    let recordList = emberA([post]);
+
+    this.add('data-adapter:main', DataAdapter.extend({
+      getRecords() {
+        return recordList;
+      },
+      observeRecord(record, recordUpdated) {
+        let self = this;
+        function callback() {
+          recordUpdated(self.wrapRecord(record));
+        }
+        addObserver(record, 'title', callback);
+        return function() {
+          removeObserver(record, 'title', callback);
+        };
+      },
+      getRecordColumnValues(record) {
+        return { title: get(record, 'title') };
+      }
+    }));
+    this.add('model:post', PostClass);
+
+    return this.visit('/').then(() => {
+      adapter = this.applicationInstance.lookup('data-adapter:main');
+
+      function recordsAdded() {
+        set(post, 'title', 'Post Modified');
+      }
+
+      function recordsUpdated(records) {
+        updatesCalled++;
+        equal(records[0].columnValues.title, 'Post Modified');
+      }
+
+      let release = adapter.watchRecords('post', recordsAdded, recordsUpdated);
+      release();
+      set(post, 'title', 'New Title');
+      equal(updatesCalled, 1, 'Release function removes observers');
+    });
+  }
+
+  ['@test _nameToClass does not error when not found']() {
+    this.add('data-adapter:main', DataAdapter);
+
+    return this.visit('/').then(() => {
+      adapter = this.applicationInstance.lookup('data-adapter:main');
+
+      let klass = adapter._nameToClass('foo');
+
+      equal(klass, undefined, 'returns undefined');
+    });
+  }
 });

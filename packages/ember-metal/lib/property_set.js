@@ -1,31 +1,28 @@
-import { assert } from 'ember-metal/debug';
-import isEnabled from 'ember-metal/features';
-import { _getPath as getPath } from 'ember-metal/property_get';
+import { toString } from 'ember-utils';
+import { assert, Error as EmberError } from 'ember-debug';
+import { _getPath as getPath } from './property_get';
 import {
-  PROPERTY_DID_CHANGE,
   propertyWillChange,
   propertyDidChange
-} from 'ember-metal/property_events';
-import { defineProperty } from 'ember-metal/properties';
-import EmberError from 'ember-metal/error';
-import {
-  isPath,
-  hasThis as pathHasThis
-} from 'ember-metal/path_cache';
-import {
-  peekMeta
-} from 'ember-metal/meta';
+} from './property_events';
 
 import {
-  lookupDescriptor,
-  toString
-} from 'ember-metal/utils';
+  isPath
+} from './path_cache';
+import {
+  peekMeta
+} from './meta';
+import { MANDATORY_SETTER } from 'ember/features';
 
 /**
   Sets the value of a property on an object, respecting computed properties
   and notifying observers and other listeners of the change. If the
   property is not defined but the object implements the `setUnknownProperty`
   method then that will be invoked as well.
+
+  ```javascript
+  Ember.set(obj, "name", value);
+  ```
 
   @method set
   @for Ember
@@ -40,84 +37,66 @@ export function set(obj, keyName, value, tolerant) {
     `Set must be called with three or four arguments; an object, a property key, a value and tolerant true/false`,
     arguments.length === 3 || arguments.length === 4
   );
-  assert(`Cannot call set with '${keyName}' on an undefined object.`, obj !== undefined && obj !== null);
+  assert(`Cannot call set with '${keyName}' on an undefined object.`, obj && typeof obj === 'object' || typeof obj === 'function');
   assert(`The key provided to set must be a string, you passed ${keyName}`, typeof keyName === 'string');
-  assert(`'this' in paths is not supported`, !pathHasThis(keyName));
+  assert(`'this' in paths is not supported`, keyName.lastIndexOf('this.', 0) !== 0);
+  assert(`calling set on destroyed object: ${toString(obj)}.${keyName} = ${toString(value)}`, !obj.isDestroyed);
 
-  var meta, possibleDesc, desc;
-  if (obj) {
-    meta = peekMeta(obj);
-    possibleDesc = obj[keyName];
-    desc = (possibleDesc !== null && typeof possibleDesc === 'object' && possibleDesc.isDescriptor) ? possibleDesc : undefined;
-  }
-
-  var isUnknown, currentValue;
-  if (desc === undefined && isPath(keyName)) {
+  if (isPath(keyName)) {
     return setPath(obj, keyName, value, tolerant);
   }
 
-  assert(`calling set on destroyed object: ${toString(obj)}.${keyName} = ${toString(value)}`,
-         !obj.isDestroyed);
+  let currentValue = obj[keyName];
+  let isDescriptor = currentValue !== null && typeof currentValue === 'object' && currentValue.isDescriptor;
 
-  if (desc) {
-    desc.set(obj, keyName, value);
+  if (isDescriptor) { /* computed property */
+    currentValue.set(obj, keyName, value);
+  } else if (obj.setUnknownProperty && currentValue === undefined && !(keyName in obj)) { /* unknown property */
+    assert('setUnknownProperty must be a function', typeof obj.setUnknownProperty === 'function');
+    obj.setUnknownProperty(keyName, value);
+  } else if (currentValue === value) { /* no change */
   } else {
-    if (value !== undefined && typeof obj === 'object' && obj[keyName] === value) {
-      return value;
-    }
+    let meta = peekMeta(obj);
+    propertyWillChange(obj, keyName, meta);
 
-    isUnknown = 'object' === typeof obj && !(keyName in obj);
-
-    // setUnknownProperty is called if `obj` is an object,
-    // the property does not already exist, and the
-    // `setUnknownProperty` method exists on the object
-    if (isUnknown && 'function' === typeof obj.setUnknownProperty) {
-      obj.setUnknownProperty(keyName, value);
-    } else if (meta && meta.peekWatching(keyName) > 0) {
-      if (meta.proto !== obj) {
-        currentValue = obj[keyName];
-      }
-      // only trigger a change if the value has changed
-      if (value !== currentValue) {
-        propertyWillChange(obj, keyName);
-
-        if (isEnabled('mandatory-setter')) {
-          if ((currentValue === undefined && !(keyName in obj)) ||
-            !Object.prototype.propertyIsEnumerable.call(obj, keyName)
-          ) {
-            defineProperty(obj, keyName, null, value); // setup mandatory setter
-          } else {
-            let descriptor = lookupDescriptor(obj, keyName);
-            let isMandatorySetter = descriptor && descriptor.set && descriptor.set.isMandatorySetter;
-            if (isMandatorySetter) {
-              meta.writeValues(keyName, value);
-            } else {
-              obj[keyName] = value;
-            }
-          }
-        } else {
-          obj[keyName] = value;
-        }
-        propertyDidChange(obj, keyName);
-      }
+    if (MANDATORY_SETTER) {
+      setWithMandatorySetter(meta, obj, keyName, value);
     } else {
       obj[keyName] = value;
-      if (obj[PROPERTY_DID_CHANGE]) {
-        obj[PROPERTY_DID_CHANGE](keyName);
-      }
     }
+
+    propertyDidChange(obj, keyName, meta);
   }
+
   return value;
 }
 
-function setPath(root, path, value, tolerant) {
-  var keyName;
+if (MANDATORY_SETTER) {
+  var setWithMandatorySetter = (meta, obj, keyName, value) => {
+    if (meta && meta.peekWatching(keyName) > 0) {
+      makeEnumerable(obj, keyName);
+      meta.writeValue(obj, keyName, value);
+    } else {
+      obj[keyName] = value;
+    }
+  };
 
+  var makeEnumerable = (obj, key) => {
+    let desc = Object.getOwnPropertyDescriptor(obj, key);
+
+    if (desc && desc.set && desc.set.isMandatorySetter) {
+      desc.enumerable = true;
+      Object.defineProperty(obj, key, desc);
+    }
+  };
+}
+
+function setPath(root, path, value, tolerant) {
   // get the last part of the path
-  keyName = path.slice(path.lastIndexOf('.') + 1);
+  let keyName = path.slice(path.lastIndexOf('.') + 1);
 
   // get the first part of the part
-  path    = (path === keyName) ? keyName : path.slice(0, path.length - (keyName.length + 1));
+  path = (path === keyName) ? keyName : path.slice(0, path.length - (keyName.length + 1));
 
   // unless the path is this, look up the first part to
   // get the root
@@ -133,7 +112,7 @@ function setPath(root, path, value, tolerant) {
     if (tolerant) {
       return;
     } else {
-      throw new EmberError('Property set failed: object in path "' + path + '" could not be found or was destroyed.');
+      throw new EmberError(`Property set failed: object in path "${path}" could not be found or was destroyed.`);
     }
   }
 

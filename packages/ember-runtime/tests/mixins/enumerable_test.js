@@ -1,21 +1,21 @@
-import EnumerableTests from 'ember-runtime/tests/suites/enumerable';
-import EmberObject from 'ember-runtime/system/object';
-import Enumerable from 'ember-runtime/mixins/enumerable';
-import EmberArray from 'ember-runtime/mixins/array';
-import { A as emberA } from 'ember-runtime/system/native_array';
-import { get } from 'ember-metal/property_get';
-import { computed } from 'ember-metal/computed';
-import { observer as emberObserver } from 'ember-metal/mixin';
+import EnumerableTests from '../suites/enumerable';
+import EmberObject from '../../system/object';
+import Enumerable from '../../mixins/enumerable';
+import EmberArray from '../../mixins/array';
+import { A as emberA } from '../../system/native_array';
+import {
+  get,
+  computed,
+  observer as emberObserver
+} from 'ember-metal';
 
 function K() { return this; }
-
 
 /*
   Implement a basic fake enumerable.  This validates that any non-native
   enumerable can impl this API.
 */
-var TestEnumerable = EmberObject.extend(Enumerable, {
-
+const TestEnumerable = EmberObject.extend(Enumerable, {
   _content: null,
 
   init(ary = []) {
@@ -23,7 +23,7 @@ var TestEnumerable = EmberObject.extend(Enumerable, {
   },
 
   addObject(obj) {
-    if (this._content.indexOf(obj)>=0) {
+    if (this._content.indexOf(obj) >= 0) {
       return this;
     }
 
@@ -47,7 +47,6 @@ var TestEnumerable = EmberObject.extend(Enumerable, {
 
 
 EnumerableTests.extend({
-
   name: 'Basic Enumerable',
 
   newObject(ary) {
@@ -69,87 +68,90 @@ EnumerableTests.extend({
 QUnit.module('Ember.Enumerable');
 
 QUnit.test('should apply Ember.Array to return value of map', function() {
-  var x = EmberObject.extend(Enumerable).create();
-  var y = x.map(K);
+  let x = EmberObject.extend(Enumerable).create();
+  let y = x.map(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('should apply Ember.Array to return value of filter', function() {
-  var x = EmberObject.extend(Enumerable).create();
-  var y = x.filter(K);
+  let x = EmberObject.extend(Enumerable).create();
+  let y = x.filter(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('should apply Ember.Array to return value of invoke', function() {
-  var x = EmberObject.extend(Enumerable).create();
-  var y = x.invoke(K);
+  let x = EmberObject.extend(Enumerable).create();
+  let y = x.invoke(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('should apply Ember.Array to return value of toArray', function() {
-  var x = EmberObject.extend(Enumerable).create();
-  var y = x.toArray(K);
+  let x = EmberObject.extend(Enumerable).create();
+  let y = x.toArray(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('should apply Ember.Array to return value of without', function() {
-  var x = EmberObject.extend(Enumerable, {
+  let X = EmberObject.extend(Enumerable, {
     contains() {
       return true;
+    },
+    includes() {
+      return true;
     }
-  }).create();
-  var y = x.without(K);
+  });
+
+  let x = X.create();
+  let y = x.without(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('should apply Ember.Array to return value of uniq', function() {
-  var x = EmberObject.extend(Enumerable).create();
-  var y = x.uniq(K);
+  let x = EmberObject.extend(Enumerable).create();
+  let y = x.uniq(K);
   equal(EmberArray.detect(y), true, 'should have mixin applied');
 });
 
 QUnit.test('any', function() {
-  var kittens = emberA([{
+  let kittens = emberA([{
     color: 'white'
   }, {
     color: 'black'
   }, {
     color: 'white'
   }]);
-  var foundWhite = kittens.any(function(kitten) { return kitten.color === 'white'; });
-  var foundWhite2 = kittens.isAny('color', 'white');
+  let foundWhite = kittens.any(kitten => kitten.color === 'white');
+  let foundWhite2 = kittens.isAny('color', 'white');
 
   equal(foundWhite, true);
   equal(foundWhite2, true);
 });
 
 QUnit.test('any with NaN', function() {
-  var numbers = emberA([1, 2, NaN, 4]);
+  let numbers = emberA([1, 2, NaN, 4]);
 
-  var hasNaN = numbers.any(function(n) {
-    return isNaN(n);
-  });
+  let hasNaN = numbers.any(n => isNaN(n));
 
   equal(hasNaN, true, 'works when matching NaN');
 });
 
 QUnit.test('every', function() {
-  var allColorsKittens = emberA([{
+  let allColorsKittens = emberA([{
     color: 'white'
   }, {
     color: 'black'
   }, {
     color: 'white'
   }]);
-  var allWhiteKittens = emberA([{
+  let allWhiteKittens = emberA([{
     color: 'white'
   }, {
     color: 'white'
   }, {
     color: 'white'
   }]);
-  var allWhite = false;
-  var whiteKittenPredicate = function(kitten) { return kitten.color === 'white'; };
+  let allWhite = false;
+  let whiteKittenPredicate = function(kitten) { return kitten.color === 'white'; };
 
   allWhite = allColorsKittens.every(whiteKittenPredicate);
   equal(allWhite, false);
@@ -164,16 +166,25 @@ QUnit.test('every', function() {
   equal(allWhite, true);
 });
 
+QUnit.test('should throw an error passing a second argument to includes', function() {
+  let x = EmberObject.extend(Enumerable).create();
+
+  equal(x.includes('any'), false);
+  expectAssertion(() => {
+    x.includes('any', 1);
+  }, /Enumerable#includes cannot accept a second argument "startAt" as enumerable items are unordered./);
+});
+
 // ..........................................................
 // CONTENT DID CHANGE
 //
 
-var DummyEnum = EmberObject.extend(Enumerable, {
+let DummyEnum = EmberObject.extend(Enumerable, {
   nextObject() {},
   length: 0
 });
 
-var obj, observer;
+let obj, observer;
 
 // ..........................................................
 // NOTIFY ENUMERABLE PROPERTY
@@ -182,7 +193,7 @@ var obj, observer;
 QUnit.module('mixins/enumerable/enumerableContentDidChange');
 
 QUnit.test('should notify observers of []', function() {
-  var obj = EmberObject.extend(Enumerable, {
+  let obj = EmberObject.extend(Enumerable, {
     nextObject() {}, // avoid exceptions
 
     enumerablePropertyDidChange: emberObserver('[]', function() {
@@ -230,8 +241,8 @@ QUnit.test('should notify observers when call with no params', function() {
 
 // API variation that included items only
 QUnit.test('should not notify when passed arrays of same length', function() {
-  var added = ['foo'];
-  var removed = ['bar'];
+  let added = ['foo'];
+  let removed = ['bar'];
 
   obj.enumerableContentWillChange(removed, added);
   equal(obj._after, 0);
@@ -241,8 +252,8 @@ QUnit.test('should not notify when passed arrays of same length', function() {
 });
 
 QUnit.test('should notify when passed arrays of different length', function() {
-  var added = ['foo'];
-  var removed = ['bar', 'baz'];
+  let added = ['foo'];
+  let removed = ['bar', 'baz'];
 
   obj.enumerableContentWillChange(removed, added);
   equal(obj._after, 0);
@@ -267,7 +278,6 @@ QUnit.test('should notify when passed old index API with delta', function() {
   obj.enumerableContentDidChange(1, 2);
   equal(obj._after, 1);
 });
-
 
 // ..........................................................
 // NOTIFY ENUMERABLE OBSERVER
@@ -310,8 +320,8 @@ QUnit.test('should notify enumerable observers when called with no params', func
 
 // API variation that included items only
 QUnit.test('should notify when called with same length items', function() {
-  var added = ['foo'];
-  var removed = ['bar'];
+  let added = ['foo'];
+  let removed = ['bar'];
 
   obj.enumerableContentWillChange(removed, added);
   deepEqual(observer._before, [obj, removed, added]);
@@ -321,8 +331,8 @@ QUnit.test('should notify when called with same length items', function() {
 });
 
 QUnit.test('should notify when called with diff length items', function() {
-  var added = ['foo', 'baz'];
-  var removed = ['bar'];
+  let added = ['foo', 'baz'];
+  let removed = ['bar'];
 
   obj.enumerableContentWillChange(removed, added);
   deepEqual(observer._before, [obj, removed, added]);

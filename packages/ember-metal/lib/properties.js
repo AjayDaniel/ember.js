@@ -2,10 +2,10 @@
 @module ember-metal
 */
 
-import { assert } from 'ember-metal/debug';
-import isEnabled from 'ember-metal/features';
-import { meta as metaFor } from 'ember-metal/meta';
-import { overrideChains } from 'ember-metal/property_events';
+import { assert } from 'ember-debug';
+import { meta as metaFor, peekMeta, UNDEFINED } from './meta';
+import { overrideChains } from './property_events';
+import { MANDATORY_SETTER } from 'ember/features';
 // ..........................................................
 // DESCRIPTOR
 //
@@ -21,9 +21,9 @@ export function Descriptor() {
   this.isDescriptor = true;
 }
 
-const REDEFINE_SUPPORTED = (function () {
+const REDEFINE_SUPPORTED = ((() => {
   // https://github.com/spalger/kibana/commit/b7e35e6737df585585332857a4c397dc206e7ff9
-  var a = Object.create(Object.prototype, {
+  let a = Object.create(Object.prototype, {
     prop: {
       configurable: true,
       value: 1
@@ -36,14 +36,19 @@ const REDEFINE_SUPPORTED = (function () {
   });
 
   return a.prop === 2;
-}());
+})());
 // ..........................................................
 // DEFINING PROPERTIES API
 //
 
 export function MANDATORY_SETTER_FUNCTION(name) {
   function SETTER_FUNCTION(value) {
-    assert(`You must use Ember.set() to set the \`${name}\` property (of ${this}) to \`${value}\`.`, false);
+    let m = peekMeta(this);
+    if (!m.isInitialized(this)) {
+      m.writeValues(name, value);
+    } else {
+      assert(`You must use Ember.set() to set the \`${name}\` property (of ${this}) to \`${value}\`.`, false);
+    }
   }
 
   SETTER_FUNCTION.isMandatorySetter = true;
@@ -52,15 +57,27 @@ export function MANDATORY_SETTER_FUNCTION(name) {
 
 export function DEFAULT_GETTER_FUNCTION(name) {
   return function GETTER_FUNCTION() {
-    var meta = this['__ember_meta__'];
-    return meta && meta.peekValues(name);
+    let meta = peekMeta(this);
+    if (meta !== null && meta !== undefined) {
+      return meta.peekValues(name);
+    }
   };
 }
 
 export function INHERITING_GETTER_FUNCTION(name) {
   function IGETTER_FUNCTION() {
-    var proto = Object.getPrototypeOf(this);
-    return proto && proto[name];
+    let meta = peekMeta(this);
+    let val;
+    if (meta !== null && meta !== undefined) {
+      val = meta.readInheritedValue('values', name);
+    }
+
+    if (val === UNDEFINED) {
+      let proto = Object.getPrototypeOf(this);
+      return proto && proto[name];
+    } else {
+      return val;
+    }
   }
 
   IGETTER_FUNCTION.isInheritingGetter = true;
@@ -96,9 +113,9 @@ export function INHERITING_GETTER_FUNCTION(name) {
   Ember.defineProperty(contact, 'lastName', undefined, 'Jolley');
 
   // define a computed property
-  Ember.defineProperty(contact, 'fullName', Ember.computed(function() {
+  Ember.defineProperty(contact, 'fullName', Ember.computed('firstName', 'lastName', function() {
     return this.firstName+' '+this.lastName;
-  }).property('firstName', 'lastName'));
+  }));
   ```
 
   @private
@@ -113,30 +130,29 @@ export function INHERITING_GETTER_FUNCTION(name) {
     become the explicit value of this property.
 */
 export function defineProperty(obj, keyName, desc, data, meta) {
-  var possibleDesc, existingDesc, watching, value;
-
-  if (!meta) {
+  if (meta === null || meta === undefined) {
     meta = metaFor(obj);
   }
-  var watchEntry = meta.peekWatching(keyName);
-  possibleDesc = obj[keyName];
-  existingDesc = (possibleDesc !== null && typeof possibleDesc === 'object' && possibleDesc.isDescriptor) ? possibleDesc : undefined;
 
-  watching = watchEntry !== undefined && watchEntry > 0;
+  let watchEntry = meta.peekWatching(keyName);
+  let watching = watchEntry !== undefined && watchEntry > 0;
+  let possibleDesc = obj[keyName];
+  let isDescriptor = possibleDesc !== null && typeof possibleDesc === 'object' && possibleDesc.isDescriptor;
 
-  if (existingDesc) {
-    existingDesc.teardown(obj, keyName);
+  if (isDescriptor) {
+    possibleDesc.teardown(obj, keyName, meta);
   }
 
+  let value;
   if (desc instanceof Descriptor) {
     value = desc;
-    if (isEnabled('mandatory-setter')) {
+    if (MANDATORY_SETTER) {
       if (watching) {
         Object.defineProperty(obj, keyName, {
           configurable: true,
           enumerable: true,
           writable: true,
-          value: value
+          value
         });
       } else {
         obj[keyName] = value;
@@ -144,39 +160,40 @@ export function defineProperty(obj, keyName, desc, data, meta) {
     } else {
       obj[keyName] = value;
     }
-    if (desc.setup) { desc.setup(obj, keyName); }
-  } else {
-    if (desc == null) {
-      value = data;
 
-      if (isEnabled('mandatory-setter')) {
-        if (watching) {
-          meta.writeValues(keyName, data);
+    didDefineComputedProperty(obj.constructor);
 
-          let defaultDescriptor = {
-            configurable: true,
-            enumerable: true,
-            set: MANDATORY_SETTER_FUNCTION(keyName),
-            get: DEFAULT_GETTER_FUNCTION(keyName)
-          };
+    if (typeof desc.setup === 'function') { desc.setup(obj, keyName); }
+  } else if (desc === undefined || desc === null) {
+    value = data;
 
-          if (REDEFINE_SUPPORTED) {
-            Object.defineProperty(obj, keyName, defaultDescriptor);
-          } else {
-            handleBrokenPhantomDefineProperty(obj, keyName, defaultDescriptor);
-          }
+    if (MANDATORY_SETTER) {
+      if (watching) {
+        meta.writeValues(keyName, data);
+
+        let defaultDescriptor = {
+          configurable: true,
+          enumerable: true,
+          set: MANDATORY_SETTER_FUNCTION(keyName),
+          get: DEFAULT_GETTER_FUNCTION(keyName)
+        };
+
+        if (REDEFINE_SUPPORTED) {
+          Object.defineProperty(obj, keyName, defaultDescriptor);
         } else {
-          obj[keyName] = data;
+          handleBrokenPhantomDefineProperty(obj, keyName, defaultDescriptor);
         }
       } else {
         obj[keyName] = data;
       }
     } else {
-      value = desc;
-
-      // fallback to ES5
-      Object.defineProperty(obj, keyName, desc);
+      obj[keyName] = data;
     }
+  } else {
+    value = desc;
+
+    // fallback to ES5
+    Object.defineProperty(obj, keyName, desc);
   }
 
   // if key is being watched, override chains that
@@ -185,10 +202,25 @@ export function defineProperty(obj, keyName, desc, data, meta) {
 
   // The `value` passed to the `didDefineProperty` hook is
   // either the descriptor or data, whichever was passed.
-  if (obj.didDefineProperty) { obj.didDefineProperty(obj, keyName, value); }
+  if (typeof obj.didDefineProperty === 'function') { obj.didDefineProperty(obj, keyName, value); }
 
   return this;
 }
+
+let hasCachedComputedProperties = false;
+export function _hasCachedComputedProperties() {
+  hasCachedComputedProperties = true;
+}
+
+function didDefineComputedProperty(constructor) {
+  if (hasCachedComputedProperties === false) { return; }
+  let cache = metaFor(constructor).readableCache();
+
+  if (cache && cache._computedProperties !== undefined) {
+    cache._computedProperties = undefined;
+  }
+}
+
 
 function handleBrokenPhantomDefineProperty(obj, keyName, desc) {
   // https://github.com/ariya/phantomjs/issues/11856

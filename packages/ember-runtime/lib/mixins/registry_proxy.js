@@ -3,8 +3,10 @@
 @submodule ember-runtime
 */
 
-import { deprecate } from 'ember-metal/debug';
-import { Mixin } from 'ember-metal/mixin';
+import {
+  Mixin
+} from 'ember-metal';
+import { deprecate } from 'ember-debug';
 
 /**
   RegistryProxyMixin is used to provide public access to specific
@@ -34,7 +36,7 @@ export default Mixin.create({
     A simple example:
 
     ```javascript
-    var App = Ember.Application.create();
+    let App = Ember.Application.create();
 
     App.Orange = Ember.Object.extend();
     App.register('fruit:favorite', App.Orange);
@@ -47,8 +49,8 @@ export default Mixin.create({
     An example of registering a controller with a non-standard name:
 
     ```javascript
-    var App = Ember.Application.create();
-    var Session = Ember.Controller.extend();
+    let App = Ember.Application.create();
+    let Session = Ember.Controller.extend();
 
     App.register('controller:session', Session);
 
@@ -66,7 +68,7 @@ export default Mixin.create({
     Some examples modifying that default behavior:
 
     ```javascript
-    var App = Ember.Application.create();
+    let App = Ember.Application.create();
 
     App.Person = Ember.Object.extend();
     App.Orange = Ember.Object.extend();
@@ -91,8 +93,8 @@ export default Mixin.create({
    Unregister a factory.
 
    ```javascript
-   var App = Ember.Application.create();
-   var User = Ember.Object.extend();
+   let App = Ember.Application.create();
+   let User = Ember.Object.extend();
    App.register('model:user', User);
 
    App.resolveRegistration('model:user').create() instanceof User //=> true
@@ -116,17 +118,6 @@ export default Mixin.create({
    @return {Boolean}
    */
   hasRegistration: registryAlias('has'),
-
-  /**
-   Register an option for a particular factory.
-
-   @public
-   @method registerOption
-   @param {String} fullName
-   @param {String} optionName
-   @param {Object} options
-   */
-  registerOption: registryAlias('option'),
 
   /**
    Return a specific registered option for a particular factory.
@@ -163,22 +154,22 @@ export default Mixin.create({
    Allow registering options for all factories of a type.
 
    ```javascript
-   var App = Ember.Application.create();
-   var appInstance = App.buildInstance();
+   let App = Ember.Application.create();
+   let appInstance = App.buildInstance();
 
    // if all of type `connection` must not be singletons
-   appInstance.optionsForType('connection', { singleton: false });
+   appInstance.registerOptionsForType('connection', { singleton: false });
 
    appInstance.register('connection:twitter', TwitterConnection);
    appInstance.register('connection:facebook', FacebookConnection);
 
-   var twitter = appInstance.lookup('connection:twitter');
-   var twitter2 = appInstance.lookup('connection:twitter');
+   let twitter = appInstance.lookup('connection:twitter');
+   let twitter2 = appInstance.lookup('connection:twitter');
 
    twitter === twitter2; // => false
 
-   var facebook = appInstance.lookup('connection:facebook');
-   var facebook2 = appInstance.lookup('connection:facebook');
+   let facebook = appInstance.lookup('connection:facebook');
+   let facebook2 = appInstance.lookup('connection:facebook');
 
    facebook === facebook2; // => false
    ```
@@ -211,8 +202,8 @@ export default Mixin.create({
     An example of providing a session object to all controllers:
 
     ```javascript
-    var App = Ember.Application.create();
-    var Session = Ember.Object.extend({ isAuthenticated: false });
+    let App = Ember.Application.create();
+    let Session = Ember.Object.extend({ isAuthenticated: false });
 
     // A factory must be registered before it can be injected
     App.register('session:main', Session);
@@ -239,11 +230,6 @@ export default Mixin.create({
     directly (via `create` or `new`) bypasses the dependency injection
     system.
 
-    **Note:** Ember-Data instantiates its models in a unique manner, and consequently
-    injections onto models (or all models) will not work as expected. Injections
-    on models can be enabled by setting `Ember.MODEL_FACTORY_INJECTIONS`
-    to `true`.
-
     @public
     @method inject
     @param  factoryNameOrType {String}
@@ -260,8 +246,8 @@ function registryAlias(name) {
 }
 
 export function buildFakeRegistryWithDeprecations(instance, typeForMessage) {
-  var fakeRegistry = {};
-  var registryProps = {
+  let fakeRegistry = {};
+  let registryProps = {
     resolve: 'resolveRegistration',
     register: 'register',
     unregister: 'unregister',
@@ -274,7 +260,7 @@ export function buildFakeRegistryWithDeprecations(instance, typeForMessage) {
     injection: 'inject'
   };
 
-  for (var deprecatedProperty in registryProps) {
+  for (let deprecatedProperty in registryProps) {
     fakeRegistry[deprecatedProperty] = buildFakeRegistryFunction(instance, typeForMessage, deprecatedProperty, registryProps[deprecatedProperty]);
   }
 
@@ -289,7 +275,7 @@ function buildFakeRegistryFunction(instance, typeForMessage, deprecatedProperty,
       {
         id: 'ember-application.app-instance-registry',
         until: '3.0.0',
-        url: 'http://emberjs.com/deprecations/v2.x/#toc_ember-application-registry-ember-applicationinstance-registry'
+        url: 'https://emberjs.com/deprecations/v2.x/#toc_ember-application-registry-ember-applicationinstance-registry'
       }
     );
     return instance[nonDeprecatedProperty](...arguments);

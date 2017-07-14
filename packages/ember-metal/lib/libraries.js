@@ -1,5 +1,5 @@
-import { warn } from 'ember-metal/debug';
-import isEnabled from 'ember-metal/features';
+import { warn } from 'ember-debug';
+import { EMBER_LIBRARIES_ISREGISTERED } from 'ember/features';
 
 /**
   Helper class that allows you to register your library with Ember.
@@ -10,19 +10,25 @@ import isEnabled from 'ember-metal/features';
   @constructor
   @private
 */
-function Libraries() {
-  this._registry = [];
-  this._coreLibIndex = 0;
+export class Libraries {
+  constructor() {
+    this._registry = [];
+    this._coreLibIndex = 0;
+  }
+
+  isRegistered(name) {
+    return !!this._getLibraryByName(name);
+  }
 }
 
 Libraries.prototype = {
   constructor: Libraries,
 
   _getLibraryByName(name) {
-    var libs = this._registry;
-    var count = libs.length;
+    let libs = this._registry;
+    let count = libs.length;
 
-    for (var i = 0; i < count; i++) {
+    for (let i = 0; i < count; i++) {
       if (libs[i].name === name) {
         return libs[i];
       }
@@ -30,13 +36,13 @@ Libraries.prototype = {
   },
 
   register(name, version, isCoreLibrary) {
-    var index = this._registry.length;
+    let index = this._registry.length;
 
     if (!this._getLibraryByName(name)) {
       if (isCoreLibrary) {
         index = this._coreLibIndex++;
       }
-      this._registry.splice(index, 0, { name: name, version: version });
+      this._registry.splice(index, 0, { name, version });
     } else {
       warn(`Library "${name}" is already registered with Ember.`, false, { id: 'ember-metal.libraries-register' });
     }
@@ -47,8 +53,8 @@ Libraries.prototype = {
   },
 
   deRegister(name) {
-    var lib = this._getLibraryByName(name);
-    var index;
+    let lib = this._getLibraryByName(name);
+    let index;
 
     if (lib) {
       index = this._registry.indexOf(lib);
@@ -57,10 +63,10 @@ Libraries.prototype = {
   }
 };
 
-if (isEnabled('ember-libraries-isregistered')) {
+if (EMBER_LIBRARIES_ISREGISTERED) {
   Libraries.prototype.isRegistered = function(name) {
     return !!this._getLibraryByName(name);
   };
 }
 
-export default Libraries;
+export default new Libraries();

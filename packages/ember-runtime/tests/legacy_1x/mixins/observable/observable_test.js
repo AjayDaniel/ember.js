@@ -1,12 +1,9 @@
-import Ember from 'ember-metal/core';
-import { get } from 'ember-metal/property_get';
-import { computed } from 'ember-metal/computed';
-import run from 'ember-metal/run_loop';
-import { observer } from 'ember-metal/mixin';
-import { w } from 'ember-runtime/system/string';
-import EmberObject from 'ember-runtime/system/object';
-import Observable from 'ember-runtime/mixins/observable';
-import { A as emberA } from 'ember-runtime/system/native_array';
+import { context } from 'ember-environment';
+import { get, computed, run, observer } from 'ember-metal';
+import { w } from '../../../../system/string';
+import EmberObject from '../../../../system/object';
+import Observable from '../../../../mixins/observable';
+import { A as emberA } from '../../../../system/native_array';
 
 /*
   NOTE: This test is adapted from the 1.x series of unit tests.  The tests
@@ -37,7 +34,7 @@ import { A as emberA } from 'ember-runtime/system/native_array';
 var object, ObjectC, ObjectD, objectA, objectB, lookup;
 
 var ObservableObject = EmberObject.extend(Observable);
-var originalLookup = Ember.lookup;
+var originalLookup = context.lookup;
 
 // ..........................................................
 // GET()
@@ -129,8 +126,8 @@ QUnit.test('should return null when property value is null on Ember.Observable',
 });
 
 QUnit.test('should call unknownProperty when value is undefined on Ember.Observable', function() {
-  equal(get(object, 'unknown'), 'unknown');
-  equal(object.lastUnknownProperty, 'unknown');
+  equal(get(objectA, 'unknown'), 'unknown');
+  equal(objectA.lastUnknownProperty, 'unknown');
 });
 
 QUnit.test('should get normal properties on standard objects', function() {
@@ -153,10 +150,6 @@ QUnit.test('raise if the provided object is undefined', function() {
   expectAssertion(function() {
     get(undefined, 'key');
   }, /Cannot call get with 'key' on an undefined object/i);
-});
-
-QUnit.test('should work when object is Ember (used in Ember.get)', function() {
-  equal(get(Ember, 'RunLoop'), Ember.RunLoop, 'Ember.get(Ember, RunLoop)');
 });
 
 QUnit.module('Ember.get() with paths');
@@ -275,7 +268,7 @@ QUnit.test('should call unknownProperty with value when property is undefined', 
 
 QUnit.module('Computed properties', {
   setup() {
-    lookup = Ember.lookup = {};
+    lookup = context.lookup = {};
 
     object = ObservableObject.extend({
       computed: computed({
@@ -368,7 +361,7 @@ QUnit.module('Computed properties', {
     });
   },
   teardown() {
-    Ember.lookup = originalLookup;
+    context.lookup = originalLookup;
   }
 });
 
@@ -413,7 +406,7 @@ QUnit.test('setting values should call function return value', function() {
     // property. Other properties blindly call set.
     expectedLength = 3;
     equal(calls.length, expectedLength, `set(${key}) should be called the right amount of times`);
-    for (idx = 0;idx < 2;idx++) {
+    for (idx = 0; idx < 2; idx++) {
       equal(calls[idx], values[idx], `call #${idx + 1} to set(${key}) should have passed value ${values[idx]}`);
     }
   });
@@ -532,9 +525,11 @@ QUnit.test('nested dependent keys should propagate after they update', function(
       })
     });
 
-    bindObj = ObservableObject.extend({
-      priceBinding: 'DepObj.price'
-    }).create();
+    expectDeprecation(() => {
+      bindObj = ObservableObject.extend({
+        priceBinding: 'DepObj.price'
+      }).create();
+    }, /`Ember.Binding` is deprecated/);
   });
 
   equal(bindObj.get('price'), 5, 'precond - binding propagates');
@@ -616,7 +611,7 @@ QUnit.module('Observable objects & object properties ', {
       getEach() {
         var keys = ['normal', 'abnormal'];
         var ret = [];
-        for (var idx = 0; idx < keys.length;idx++) {
+        for (var idx = 0; idx < keys.length; idx++) {
           ret[ret.length] = this.get(keys[idx]);
         }
         return ret;
@@ -830,8 +825,7 @@ QUnit.test('removing an observer inside of an observer shouldn’t cause any pro
     run(function() {
       ObjectD.set('observableValue', 'hi world');
     });
-  }
-  catch(e) {
+  } catch (e) {
     encounteredError = true;
   }
   equal(encounteredError, false);
@@ -839,9 +833,8 @@ QUnit.test('removing an observer inside of an observer shouldn’t cause any pro
 
 
 
-QUnit.module('Bind function ', {
+QUnit.module('Bind function', {
   setup() {
-    originalLookup = Ember.lookup;
     objectA = ObservableObject.create({
       name: 'Sproutcore',
       location: 'Timbaktu'
@@ -854,7 +847,7 @@ QUnit.module('Bind function ', {
       }
     });
 
-    lookup = Ember.lookup = {
+    lookup = context.lookup = {
       'Namespace': {
         objectA: objectA,
         objectB: objectB
@@ -863,14 +856,16 @@ QUnit.module('Bind function ', {
   },
 
   teardown() {
-    Ember.lookup = originalLookup;
+    context.lookup = originalLookup;
   }
 });
 
 QUnit.test('should bind property with method parameter as undefined', function() {
   // creating binding
   run(function() {
-    objectA.bind('name', 'Namespace.objectB.normal', undefined);
+    expectDeprecation(() => {
+      objectA.bind('name', 'Namespace.objectB.normal', undefined);
+    }, /`Ember.Binding` is deprecated/);
   });
 
   // now make a change to see if the binding triggers.

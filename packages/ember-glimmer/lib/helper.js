@@ -1,9 +1,13 @@
 /**
 @module ember
-@submodule ember-templates
+@submodule ember-glimmer
 */
 
-import Object from 'ember-runtime/system/object';
+import { symbol } from 'ember-utils';
+import { FrameworkObject } from 'ember-runtime';
+import { DirtyableTag } from '@glimmer/reference';
+
+export const RECOMPUTE_TAG = symbol('RECOMPUTE_TAG');
 
 /**
   Ember Helpers are functions that can compute values, and are used in templates.
@@ -45,8 +49,13 @@ import Object from 'ember-runtime/system/object';
   @public
   @since 1.13.0
 */
-var Helper = Object.extend({
+var Helper = FrameworkObject.extend({
   isHelperInstance: true,
+
+  init() {
+    this._super(...arguments);
+    this[RECOMPUTE_TAG] = new DirtyableTag();
+  },
 
   /**
     On a class-based helper, it may be useful to force a recomputation of that
@@ -72,7 +81,9 @@ var Helper = Object.extend({
     @public
     @since 1.13.0
   */
-  recompute() {}
+  recompute() {
+    this[RECOMPUTE_TAG].dirty();
+  }
 
   /**
     Override this function when writing a class-based helper.

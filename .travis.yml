@@ -1,45 +1,35 @@
----
 language: node_js
-node_js:
-  - "5"
+sudo: required
+dist: trusty
 
-sudo: false
+node_js:
+  - "6"
+
+addons:
+  firefox: "latest"
 
 cache:
   directories:
-    - node_modules
-    - bower_components
-    - persistent-filter-caches
-    - phantomjs
+  - $HOME/.yarn-cache
 
 before_install:
-  - "npm config set spin false"
-  - "npm --version"
-  - "phantomjs --version"
-  - "rm -f /tmp/*.dmp"
-  - "mkdir -p phantomjs"
-  - >
-    if [ ! -d ./phantomjs/`phantomjs --version`-linux-x86_64-symbols ]; then
-      wget -O /tmp/phantomjs-`phantomjs --version`-linux-x86_64-symbols.tar.bz2 https://bitbucket.org/ariya/phantomjs/downloads/phantomjs-`phantomjs --version`-linux-x86_64-symbols.tar.bz2 &&
-      tar -xjvf /tmp/phantomjs-`phantomjs --version`-linux-x86_64-symbols.tar.bz2 -C ./phantomjs;
-    fi
+- |
+    phantomjs --version
+    export DISPLAY=:99.0
+    sh -e /etc/init.d/xvfb start
+
+    sudo apt-key adv --fetch-keys http://dl.yarnpkg.com/debian/pubkey.gpg
+    echo "deb http://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq yarn
+    yarn --version
 
 install:
-  - "npm install"
-  - bower install
+- |
+    yarn install
 
 after_success:
   - "./bin/publish_builds"
-
-after_script:
-  - "cd ./phantomjs/phantomjs-`phantomjs --version`-linux-x86_64-symbols"
-  - >
-    for i in /tmp/*.dmp; do
-      ./minidump_stackwalk $i . 2>/dev/null;
-    done
-
-script:
-  - npm test
 
 branches:
   only:
@@ -53,9 +43,7 @@ env:
     - SAUCE_ACCESS_KEY=b5cff982-069f-4a0d-ac34-b77e57c2e295
     - DISABLE_SOURCE_MAPS=true
     - BROCCOLI_ENV=production
-    - S3_BUILD_CACHE_BUCKET=emberjs-build-cache
     - S3_BUCKET_NAME=builds.emberjs.com
-    - BROCCOLI_PERSISTENT_FILTER_CACHE_ROOT=persistent-filter-caches
     - secure: "SHnuJ4A3QbSc3LV2fYynDPbbSbhVl0ZWnCiKPuRgwnddDnoSaMQUY2RqyHdtsQGdUZCOeNaMvYUhYx6hzxBVHn0yuN3KA20aSwvYdwaMgZXfJi+lyxgsEI8iYdksWXvVbCAyKM8zjTWXUtNcMBGtsGYOfdD41wfZgI8GsI0YYJc="
     - secure: ! 'KXJmcGLpnxnPmmei/qPNVcdQxLX1xyYIaVocinQ0YAjtBvCtAwg63EWMFnGp
 
@@ -69,8 +57,12 @@ env:
       I/BFT0MbnR6JVCZiPV7TCWPgY1gvgZ6TEEIKGqauDMUBdL8ZK6I='
     - secure: e0yxVfwVW61d3Mi/QBOsY6Rfd1mZd3VXUd9xNRoz/fkvQJRuVwDe7oG3NOuJ4LZzvMw7BJ+zpDV9D8nKhAyPEEOgpkkMHUB7Ds83pHG4qSMzm4EAwBCadDLXCQirldz8dzN5FAqgGucXoj5fj/p2SKOkO6qWIZveGr8pdBJEG1E=
   matrix:
-    - TEST_SUITE=each-package-tests
+    - TEST_SUITE=each-package-tests PUBLISH=true
     - TEST_SUITE=built-tests EMBER_ENV=production DISABLE_JSCS=true DISABLE_JSHINT=true
-    - TEST_SUITE=old-jquery-and-extend-prototypes
+    - TEST_SUITE=old-jquery-and-extend-prototypes DISABLE_JSCS=true DISABLE_JSHINT=true
     - TEST_SUITE=node DISABLE_JSCS=true DISABLE_JSHINT=true
+    - TEST_SUITE=blueprints
+    - TEST_SUITE=travis-browsers DISABLE_JSCS=true DISABLE_JSHINT=true
     - TEST_SUITE=sauce
+    - TEST_SUITE=allow-backtracking-rerender ALLOW_BACKTRACKING=true
+    - TEST_SUITE=each-package-tests BUILD_TYPE=alpha PUBLISH=true

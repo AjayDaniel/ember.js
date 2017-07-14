@@ -2,8 +2,14 @@
 @module ember-metal
 */
 
-import { assert } from 'ember-metal/debug';
-import { isPath, hasThis } from 'ember-metal/path_cache';
+import { assert } from 'ember-debug';
+import { isPath } from './path_cache';
+
+const ALLOWABLE_TYPES = {
+  object: true,
+  function: true,
+  string: true
+};
 
 // ..........................................................
 // GET AND SET
@@ -16,6 +22,10 @@ import { isPath, hasThis } from 'ember-metal/path_cache';
   Gets the value of a property on an object. If the property is computed,
   the function will be invoked. If the property is not defined but the
   object implements the `unknownProperty` method then that will be invoked.
+
+  ```javascript
+  Ember.get(obj, "name");
+  ```
 
   If you plan to run on IE8 and older browsers then you should use this
   method anytime you want to retrieve a property on an object that you don't
@@ -41,43 +51,31 @@ export function get(obj, keyName) {
   assert(`Get must be called with two arguments; an object and a property key`, arguments.length === 2);
   assert(`Cannot call get with '${keyName}' on an undefined object.`, obj !== undefined && obj !== null);
   assert(`The key provided to get must be a string, you passed ${keyName}`, typeof keyName === 'string');
-  assert(`'this' in paths is not supported`, !hasThis(keyName));
+  assert(`'this' in paths is not supported`, keyName.lastIndexOf('this.', 0) !== 0);
+  assert('Cannot call `Ember.get` with an empty string', keyName !== '');
 
-  // Helpers that operate with 'this' within an #each
-  if (keyName === '') {
-    return obj;
-  }
+  let value = obj[keyName];
+  let isDescriptor = value !== null && typeof value === 'object' && value.isDescriptor;
 
-  var value = obj[keyName];
-  var desc = (value !== null && typeof value === 'object' && value.isDescriptor) ? value : undefined;
-  var ret;
-
-  if (desc === undefined && isPath(keyName)) {
+  if (isDescriptor) {
+    return value.get(obj, keyName);
+  } else if (isPath(keyName)) {
     return _getPath(obj, keyName);
-  }
-
-  if (desc) {
-    return desc.get(obj, keyName);
+  } else if (value === undefined &&
+    'object' === typeof obj && !(keyName in obj) && 'function' === typeof obj.unknownProperty) {
+    return obj.unknownProperty(keyName);
   } else {
-    ret = value;
-
-    if (ret === undefined &&
-        'object' === typeof obj && !(keyName in obj) && 'function' === typeof obj.unknownProperty) {
-      return obj.unknownProperty(keyName);
-    }
-
-    return ret;
+    return value;
   }
 }
 
 export function _getPath(root, path) {
   let obj = root;
   let parts = path.split('.');
-  let len = parts.length;
 
-  for (let i = 0; i < len; i++) {
-    if (obj == null) {
-      return obj;
+  for (let i = 0; i < parts.length; i++) {
+    if (!isGettable(obj)) {
+      return undefined;
     }
 
     obj = get(obj, parts[i]);
@@ -88,6 +86,10 @@ export function _getPath(root, path) {
   }
 
   return obj;
+}
+
+function isGettable(obj) {
+  return obj !== undefined && obj !== null && ALLOWABLE_TYPES[typeof obj];
 }
 
 /**
@@ -107,7 +109,7 @@ export function _getPath(root, path) {
   @public
 */
 export function getWithDefault(root, key, defaultValue) {
-  var value = get(root, key);
+  let value = get(root, key);
 
   if (value === undefined) { return defaultValue; }
   return value;

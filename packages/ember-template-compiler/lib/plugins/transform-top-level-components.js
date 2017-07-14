@@ -1,47 +1,26 @@
-function TransformTopLevelComponents() {
-  // set later within HTMLBars to the syntax package
-  this.syntax = null;
+export default function transformTopLevelComponent(env) {
+  return {
+    name: 'transform-top-level-component',
+
+    visitors: {
+      Program(node) {
+        hasSingleComponentNode(node, component => {
+          component.tag = `@${component.tag}`;
+          component.isStatic = true;
+        });
+      }
+    }
+  }
 }
 
-/**
-  @private
-  @method transform
-  @param {AST} The AST to be transformed.
-*/
-TransformTopLevelComponents.prototype.transform = function TransformTopLevelComponents_transform(ast) {
-  let b = this.syntax.builders;
-
-  hasSingleComponentNode(ast, component => {
-    if (component.type === 'ComponentNode') {
-      component.tag = `@${component.tag}`;
-      component.isStatic = true;
-    }
-  }, element => {
-    let hasTripleCurlies = element.attributes.some(attr => attr.value.escaped === false);
-
-    if (element.modifiers.length || hasTripleCurlies) {
-      return element;
-    } else {
-      // TODO: Properly copy loc from children
-      let program = b.program(element.children);
-      let component = b.component(`@<${element.tag}>`, element.attributes, program, element.loc);
-      component.isStatic = true;
-      return component;
-    }
-  });
-
-  return ast;
-};
-
-function hasSingleComponentNode(program, componentCallback, elementCallback) {
+function hasSingleComponentNode(program, componentCallback) {
   let { loc, body } = program;
   if (!loc || loc.start.line !== 1 || loc.start.column !== 0) { return; }
 
   let lastComponentNode;
-  let lastIndex;
   let nodeCount = 0;
 
-  for (let i = 0, l = body.length; i < l; i++) {
+  for (let i = 0; i < body.length; i++) {
     let curr = body[i];
 
     // text node with whitespace only
@@ -52,7 +31,6 @@ function hasSingleComponentNode(program, componentCallback, elementCallback) {
 
     if (curr.type === 'ComponentNode' || curr.type === 'ElementNode') {
       lastComponentNode = curr;
-      lastIndex = i;
     }
   }
 
@@ -62,5 +40,3 @@ function hasSingleComponentNode(program, componentCallback, elementCallback) {
     componentCallback(lastComponentNode);
   }
 }
-
-export default TransformTopLevelComponents;

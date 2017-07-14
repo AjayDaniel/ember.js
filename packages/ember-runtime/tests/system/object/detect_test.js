@@ -1,11 +1,11 @@
-import EmberObject from 'ember-runtime/system/object';
+import EmberObject from '../../../system/object';
 
 QUnit.module('system/object/detect');
 
 QUnit.test('detect detects classes correctly', function() {
-  var A = EmberObject.extend();
-  var B = A.extend();
-  var C = A.extend();
+  let A = EmberObject.extend();
+  let B = A.extend();
+  let C = A.extend();
 
   ok(EmberObject.detect(EmberObject), 'EmberObject is an EmberObject class');
   ok(EmberObject.detect(A), 'A is an EmberObject class');

@@ -1,11 +1,8 @@
-import { assert } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import { tryInvoke } from 'ember-metal/utils';
-import { getOwner } from 'container/owner';
-
-import EmberObject from 'ember-runtime/system/object';
-import environment from 'ember-metal/environment';
+import { tryInvoke, getOwner } from 'ember-utils';
+import { get, set } from 'ember-metal';
+import { assert } from 'ember-debug';
+import { Object as EmberObject } from 'ember-runtime';
+import { environment } from 'ember-environment';
 
 import {
   supportsHashChange,
@@ -15,7 +12,7 @@ import {
   getQuery,
   getFullPath,
   replacePath
-} from 'ember-routing/location/util';
+} from './util';
 
 /**
 @module ember
@@ -68,9 +65,9 @@ export default EmberObject.extend({
 
    @since 1.11
    @property global
-   @default environment.global
+   @default window
   */
-  global: environment.global,
+  global: environment.window,
 
   /**
     @private
@@ -115,16 +112,16 @@ export default EmberObject.extend({
    @private
   */
   detect() {
-    var rootURL = this.rootURL;
+    let rootURL = this.rootURL;
 
     assert('rootURL must end with a trailing forward slash e.g. "/app/"',
                  rootURL.charAt(rootURL.length - 1) === '/');
 
-    var implementation = detectImplementation({
+    let implementation = detectImplementation({
       location: this.location,
       history: this.history,
       userAgent: this.userAgent,
-      rootURL: rootURL,
+      rootURL,
       documentMode: this.documentMode,
       global: this.global
     });
@@ -134,7 +131,7 @@ export default EmberObject.extend({
       implementation = 'none';
     }
 
-    var concrete = getOwner(this).lookup(`location:${implementation}`);
+    let concrete = getOwner(this).lookup(`location:${implementation}`);
     set(concrete, 'rootURL', rootURL);
 
     assert(`Could not find location '${implementation}'.`, !!concrete);
@@ -150,7 +147,7 @@ export default EmberObject.extend({
   formatURL: delegateToConcreteImplementation('formatURL'),
 
   willDestroy() {
-    var concreteImplementation = get(this, 'concreteImplementation');
+    let concreteImplementation = get(this, 'concreteImplementation');
 
     if (concreteImplementation) {
       concreteImplementation.destroy();
@@ -160,7 +157,7 @@ export default EmberObject.extend({
 
 function delegateToConcreteImplementation(methodName) {
   return function(...args) {
-    var concreteImplementation = get(this, 'concreteImplementation');
+    let concreteImplementation = get(this, 'concreteImplementation');
     assert('AutoLocation\'s detect() method should be called before calling any other hooks.', !!concreteImplementation);
     return tryInvoke(concreteImplementation, methodName, args);
   };
@@ -181,19 +178,19 @@ function delegateToConcreteImplementation(methodName) {
 */
 
 function detectImplementation(options) {
-  var location = options.location;
-  var userAgent = options.userAgent;
-  var history = options.history;
-  var documentMode = options.documentMode;
-  var global = options.global;
-  var rootURL = options.rootURL;
+  let location = options.location;
+  let userAgent = options.userAgent;
+  let history = options.history;
+  let documentMode = options.documentMode;
+  let global = options.global;
+  let rootURL = options.rootURL;
 
-  var implementation = 'none';
-  var cancelRouterSetup = false;
-  var currentPath = getFullPath(location);
+  let implementation = 'none';
+  let cancelRouterSetup = false;
+  let currentPath = getFullPath(location);
 
   if (supportsHistory(userAgent, history)) {
-    var historyPath = getHistoryPath(rootURL, location);
+    let historyPath = getHistoryPath(rootURL, location);
 
     // If the browser supports history and we have a history path, we can use
     // the history location with no redirects.
@@ -209,7 +206,7 @@ function detectImplementation(options) {
       }
     }
   } else if (supportsHashChange(documentMode, global)) {
-    var hashPath = getHashPath(rootURL, location);
+    let hashPath = getHashPath(rootURL, location);
 
     // Be sure we're using a hashed path, otherwise let's switch over it to so
     // we start off clean and consistent. We'll count an index path with no
@@ -239,11 +236,11 @@ function detectImplementation(options) {
   starts off as a hashed URL)
 */
 export function getHistoryPath(rootURL, location) {
-  var path = getPath(location);
-  var hash = getHash(location);
-  var query = getQuery(location);
-  var rootURLIndex = path.indexOf(rootURL);
-  var routeHash, hashParts;
+  let path = getPath(location);
+  let hash = getHash(location);
+  let query = getQuery(location);
+  let rootURLIndex = path.indexOf(rootURL);
+  let routeHash, hashParts;
 
   assert(`Path ${path} does not start with the provided rootURL ${rootURL}`, rootURLIndex === 0);
 
@@ -258,18 +255,18 @@ export function getHistoryPath(rootURL, location) {
 
     // If the path already has a trailing slash, remove the one
     // from the hashed route so we don't double up.
-    if (path.slice(-1) === '/') {
+    if (path.charAt(path.length - 1) === '/') {
       routeHash = routeHash.substr(1);
     }
 
     // This is the "expected" final order
-    path = path + routeHash + query;
+    path += routeHash + query;
 
     if (hashParts.length) {
       path += `#${hashParts.join('#')}`;
     }
   } else {
-    path = path + query + hash;
+    path += query + hash;
   }
 
   return path;
@@ -284,16 +281,16 @@ export function getHistoryPath(rootURL, location) {
   @method _getHashPath
 */
 export function getHashPath(rootURL, location) {
-  var path = rootURL;
-  var historyPath = getHistoryPath(rootURL, location);
-  var routePath = historyPath.substr(rootURL.length);
+  let path = rootURL;
+  let historyPath = getHistoryPath(rootURL, location);
+  let routePath = historyPath.substr(rootURL.length);
 
   if (routePath !== '') {
-    if (routePath.charAt(0) !== '/') {
-      routePath = '/' + routePath;
+    if (routePath[0] !== '/') {
+      routePath = `/${routePath}`;
     }
 
-    path += '#' + routePath;
+    path += `#${routePath}`;
   }
 
   return path;

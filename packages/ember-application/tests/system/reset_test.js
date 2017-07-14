@@ -1,282 +1,142 @@
-import run from 'ember-metal/run_loop';
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import EmberApplication from 'ember-application/system/application';
-import EmberObject from 'ember-runtime/system/object';
-import Router from 'ember-routing/system/router';
-import View from 'ember-views/views/view';
-import Controller from 'ember-runtime/controllers/controller';
-import jQuery from 'ember-views/system/jquery';
-import Registry from 'container/registry';
+import { run, get, set } from 'ember-metal';
+import { Object as EmberObject, Controller } from 'ember-runtime';
+import { Router } from 'ember-routing';
+import { moduleFor, AutobootApplicationTestCase } from 'internal-test-helpers';
 
-var application, Application;
+let application, Application;
 
-QUnit.module('Ember.Application - resetting', {
-  setup() {
-    Application = EmberApplication.extend({
-      name: 'App',
-      rootElement: '#qunit-fixture'
-    });
-  },
-  teardown() {
-    Application = null;
-    if (application) {
-      run(application, 'destroy');
-    }
+moduleFor('Ember.Application - resetting', class extends AutobootApplicationTestCase {
+
+  ['@test Brings its own run-loop if not provided'](assert) {
+    assert.expect(0);
+    run(() => this.createApplication());
+    this.application.reset();
   }
-});
 
-QUnit.test('Brings its own run-loop if not provided', function() {
-  application = run(Application, 'create');
-  application.ready = function() {
-    QUnit.start();
-    ok(true, 'app booted');
-  };
+  ['@test Does not bring its own run loop if one is already provided'](assert) {
+    assert.expect(3);
 
-  QUnit.stop();
-  application.reset();
-});
+    let didBecomeReady = false;
 
-QUnit.test('Does not bring its own run loop if one is already provided', function() {
-  expect(3);
+    run(() => this.createApplication());
 
-  var didBecomeReady = false;
+    run(() => {
+      this.application.ready = () => {
+        didBecomeReady = true;
+      };
 
-  application = run(Application, 'create');
+      this.application.reset();
 
-  run(function() {
-    application.ready = function() {
-      didBecomeReady = true;
+      this.application.deferReadiness();
+      assert.ok(!didBecomeReady, 'app is not ready');
+    });
+
+    assert.ok(!didBecomeReady, 'app is not ready');
+    run(this.application, 'advanceReadiness');
+    assert.ok(didBecomeReady, 'app is ready');
+  }
+
+  ['@test When an application is reset, new instances of controllers are generated'](assert) {
+    run(() => {
+      this.createApplication();
+      this.add('controller:academic', Controller.extend());
+    });
+
+    let firstController = this.applicationInstance.lookup('controller:academic');
+    let secondController = this.applicationInstance.lookup('controller:academic');
+
+    this.application.reset();
+
+    let thirdController = this.applicationInstance.lookup('controller:academic');
+
+    assert.strictEqual(firstController, secondController, 'controllers looked up in succession should be the same instance');
+
+    ok(firstController.isDestroying, 'controllers are destroyed when their application is reset');
+
+    assert.notStrictEqual(firstController, thirdController, 'controllers looked up after the application is reset should not be the same instance');
+  }
+
+  ['@test When an application is reset, the eventDispatcher is destroyed and recreated'](assert) {
+    let eventDispatcherWasSetup = 0;
+    let eventDispatcherWasDestroyed = 0;
+
+    let mockEventDispatcher = {
+      setup() {
+        eventDispatcherWasSetup++;
+      },
+      destroy() {
+        eventDispatcherWasDestroyed++;
+      }
     };
 
-    application.reset();
+    run(() => {
+      this.createApplication();
+      this.add('event_dispatcher:main', {create: () => mockEventDispatcher});
 
-    application.deferReadiness();
-    ok(!didBecomeReady, 'app is not ready');
-  });
+      assert.equal(eventDispatcherWasSetup, 0);
+      assert.equal(eventDispatcherWasDestroyed, 0);
+    });
 
-  ok(!didBecomeReady, 'app is not ready');
-  run(application, 'advanceReadiness');
-  ok(didBecomeReady, 'app is ready');
-});
+    assert.equal(eventDispatcherWasSetup, 1);
+    assert.equal(eventDispatcherWasDestroyed, 0);
 
-QUnit.test('When an application is reset, new instances of controllers are generated', function() {
-  run(function() {
-    application = Application.create();
-    application.AcademicController = Controller.extend();
-  });
+    this.application.reset();
 
-  var firstController = application.__container__.lookup('controller:academic');
-  var secondController = application.__container__.lookup('controller:academic');
+    assert.equal(eventDispatcherWasDestroyed, 1);
+    assert.equal(eventDispatcherWasSetup, 2, 'setup called after reset');
+  }
 
-  application.reset();
+  ['@test When an application is reset, the router URL is reset to `/`'](assert) {
+    run(() => {
+      this.createApplication();
 
-  var thirdController = application.__container__.lookup('controller:academic');
+      this.add('router:main', Router.extend({
+        location: 'none'
+      }));
 
-  strictEqual(firstController, secondController, 'controllers looked up in succession should be the same instance');
+      this.router.map(function() {
+        this.route('one');
+        this.route('two');
+      });
+    });
 
-  ok(firstController.isDestroying, 'controllers are destroyed when their application is reset');
+    this.visit('/one');
 
-  notStrictEqual(firstController, thirdController, 'controllers looked up after the application is reset should not be the same instance');
-});
+    this.application.reset();
 
-QUnit.test('When an application is reset, the eventDispatcher is destroyed and recreated', function() {
-  var eventDispatcherWasSetup, eventDispatcherWasDestroyed;
+    let applicationController = this.applicationInstance.lookup('controller:application');
+    let router = this.applicationInstance.lookup('router:main');
+    let location = router.get('location');
 
-  eventDispatcherWasSetup = 0;
-  eventDispatcherWasDestroyed = 0;
+    assert.equal(location.getURL(), '');
+    assert.equal(get(applicationController, 'currentPath'), 'index');
 
-  var mock_event_dispatcher = {
-    create() {
-      return {
-        setup() {
-          eventDispatcherWasSetup++;
-        },
-        destroy() {
-          eventDispatcherWasDestroyed++;
+    this.visit('/one');
+
+    assert.equal(get(applicationController, 'currentPath'), 'one');
+  }
+
+  ['@test When an application with advance/deferReadiness is reset, the app does correctly become ready after reset'](assert) {
+    let readyCallCount = 0;
+
+    run(() => {
+      this.createApplication({
+        ready() {
+          readyCallCount++;
         }
-      };
-    }
-  };
+      });
 
-  // this is pretty awful. We should make this less Global-ly.
-  var originalRegister = Registry.prototype.register;
-  Registry.prototype.register = function(name, type, options) {
-    if (name === 'event_dispatcher:main') {
-      return mock_event_dispatcher;
-    } else {
-      return originalRegister.call(this, name, type, options);
-    }
-  };
-
-  try {
-    run(function() {
-      application = Application.create();
-
-      equal(eventDispatcherWasSetup, 0);
-      equal(eventDispatcherWasDestroyed, 0);
+      this.application.deferReadiness();
+      assert.equal(readyCallCount, 0, 'ready has not yet been called');
     });
 
-    equal(eventDispatcherWasSetup, 1);
-    equal(eventDispatcherWasDestroyed, 0);
+    run(this.application, 'advanceReadiness');
 
-    application.reset();
+    assert.equal(readyCallCount, 1, 'ready was called once');
 
-    equal(eventDispatcherWasDestroyed, 1);
-    equal(eventDispatcherWasSetup, 2, 'setup called after reset');
-  } catch (error) { Registry.prototype.register = originalRegister; }
+    this.application.reset();
 
-  Registry.prototype.register = originalRegister;
-});
+    assert.equal(readyCallCount, 2, 'ready was called twice');
+  }
 
-QUnit.test('When an application is reset, the ApplicationView is torn down', function() {
-  run(function() {
-    application = Application.create();
-    application.ApplicationView = View.extend({
-      elementId: 'application-view'
-    });
-  });
-
-  equal(jQuery('#qunit-fixture #application-view').length, 1, 'precond - the application view is rendered');
-
-  var originalView = View.views['application-view'];
-
-  application.reset();
-
-  var resettedView = View.views['application-view'];
-
-  equal(jQuery('#qunit-fixture #application-view').length, 1, 'the application view is rendered');
-
-  notStrictEqual(originalView, resettedView, 'The view object has changed');
-});
-
-QUnit.test('When an application is reset, the router URL is reset to `/`', function() {
-  var location, router;
-
-  run(function() {
-    application = Application.create();
-    application.Router = Router.extend({
-      location: 'none'
-    });
-
-    application.Router.map(function() {
-      this.route('one');
-      this.route('two');
-    });
-  });
-
-  router = application.__container__.lookup('router:main');
-
-  location = router.get('location');
-
-  run(function() {
-    location.handleURL('/one');
-  });
-
-  application.reset();
-
-  var applicationController = application.__container__.lookup('controller:application');
-  router = application.__container__.lookup('router:main');
-  location = router.get('location');
-
-  equal(location.getURL(), '');
-
-  equal(get(applicationController, 'currentPath'), 'index');
-
-  location = application.__container__.lookup('router:main').get('location');
-  run(function() {
-    location.handleURL('/one');
-  });
-
-  equal(get(applicationController, 'currentPath'), 'one');
-});
-
-QUnit.test('When an application with advance/deferReadiness is reset, the app does correctly become ready after reset', function() {
-  var readyCallCount;
-
-  readyCallCount = 0;
-
-  run(function() {
-    application = Application.create({
-      ready() {
-        readyCallCount++;
-      }
-    });
-
-    application.deferReadiness();
-    equal(readyCallCount, 0, 'ready has not yet been called');
-  });
-
-  run(function() {
-    application.advanceReadiness();
-  });
-
-  equal(readyCallCount, 1, 'ready was called once');
-
-  application.reset();
-
-  equal(readyCallCount, 2, 'ready was called twice');
-});
-
-QUnit.test('With ember-data like initializer and constant', function() {
-  var readyCallCount;
-
-  readyCallCount = 0;
-
-  var DS = {
-    Store: EmberObject.extend({
-      init() {
-        if (!get(DS, 'defaultStore')) {
-          set(DS, 'defaultStore', this);
-        }
-
-        this._super(...arguments);
-      },
-      willDestroy() {
-        if (get(DS, 'defaultStore') === this) {
-          set(DS, 'defaultStore', null);
-        }
-      }
-    })
-  };
-
-  Application.initializer({
-    name: 'store',
-    initialize(application) {
-      application.unregister('store:main');
-      application.register('store:main', application.Store);
-
-      application.__container__.lookup('store:main');
-    }
-  });
-
-  run(function() {
-    application = Application.create();
-    application.Store = DS.Store;
-  });
-
-  ok(DS.defaultStore, 'has defaultStore');
-
-  application.reset();
-
-  ok(DS.defaultStore, 'still has defaultStore');
-  ok(application.__container__.lookup('store:main'), 'store is still present');
-});
-
-QUnit.test('Ensure that the hashchange event listener is removed', function() {
-  var listeners;
-
-  jQuery(window).off('hashchange'); // ensure that any previous listeners are cleared
-
-  run(function() {
-    application = Application.create();
-  });
-
-  listeners = jQuery._data(jQuery(window)[0], 'events');
-  equal(listeners['hashchange'].length, 1, 'hashchange event listener was set up');
-
-  application.reset();
-
-  listeners = jQuery._data(jQuery(window)[0], 'events');
-  equal(listeners['hashchange'].length, 1, 'hashchange event only exists once');
 });

@@ -1,17 +1,16 @@
-import CopyableTests from 'ember-runtime/tests/suites/copyable';
-import Copyable from 'ember-runtime/mixins/copyable';
-import {Freezable} from 'ember-runtime/mixins/freezable';
-import EmberObject from 'ember-runtime/system/object';
-import {generateGuid} from 'ember-metal/utils';
-import {set} from 'ember-metal/property_set';
-import {get} from 'ember-metal/property_get';
+import { generateGuid } from 'ember-utils';
+import CopyableTests from '../suites/copyable';
+import Copyable from '../../mixins/copyable';
+import { Freezable } from '../../mixins/freezable';
+import EmberObject from '../../system/object';
+import { set, get } from 'ember-metal';
 
 QUnit.module('Ember.Copyable.frozenCopy');
 
 QUnit.test('should be deprecated', function() {
   expectDeprecation('`frozenCopy` is deprecated, use `Object.freeze` instead.');
 
-  var Obj = EmberObject.extend(Freezable, Copyable, {
+  let Obj = EmberObject.extend(Freezable, Copyable, {
     copy() {
       return Obj.create();
     }
@@ -20,8 +19,7 @@ QUnit.test('should be deprecated', function() {
   Obj.create().frozenCopy();
 });
 
-var CopyableObject = EmberObject.extend(Copyable, {
-
+const CopyableObject = EmberObject.extend(Copyable, {
   id: null,
 
   init() {
@@ -30,7 +28,7 @@ var CopyableObject = EmberObject.extend(Copyable, {
   },
 
   copy() {
-    var ret = new CopyableObject();
+    let ret = new CopyableObject();
     set(ret, 'id', get(this, 'id'));
     return ret;
   }

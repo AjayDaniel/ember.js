@@ -1,89 +1,40 @@
-import Ember from 'ember-metal/core';
-import run from 'ember-metal/run_loop';
-import compile from 'ember-template-compiler/system/compile';
-import Application from 'ember-application/system/application';
-import jQuery from 'ember-views/system/jquery';
+import { moduleFor, ApplicationTestCase } from 'internal-test-helpers';
+import { run } from 'ember-metal';
+import { Router } from 'ember-routing';
 
-var Router, router, App, container;
+moduleFor('Router.map', class extends ApplicationTestCase {
+  ['@test Router.map returns an Ember Router class'](assert) {
+    assert.expect(1);
 
-function bootApplication() {
-  router = container.lookup('router:main');
-  run(App, 'advanceReadiness');
-}
-
-function handleURL(path) {
-  return run(function() {
-    return router.handleURL(path).then(function(value) {
-      ok(true, 'url: `' + path + '` was handled');
-      return value;
-    }, function(reason) {
-      ok(false, 'failed to visit:`' + path + '` reason: `' + QUnit.jsDump.parse(reason));
-      throw reason;
+    let ret = this.router.map(function() {
+      this.route('hello');
     });
-  });
-}
 
-QUnit.module('Router.map', {
-  setup() {
-    run(function() {
-      App = Application.create({
-        name: 'App',
-        rootElement: '#qunit-fixture'
-      });
+    assert.ok(Router.detect(ret));
+  }
 
-      App.deferReadiness();
+  ['@test Router.map can be called multiple times'](assert) {
+    assert.expect(2);
 
-      App.Router.reopen({
-        location: 'none'
-      });
+    this.addTemplate('hello', 'Hello!');
+    this.addTemplate('goodbye', 'Goodbye!');
 
-      Router = App.Router;
-
-      container = App.__container__;
+    this.router.map(function() {
+      this.route('hello');
     });
-  },
 
-  teardown() {
-    run(function() {
-      App.destroy();
-      App = null;
+    this.router.map(function() {
+      this.route('goodbye');
+    });
 
-      Ember.TEMPLATES = {};
+    return run(() => {
+      return this.visit('/hello').then(() => {
+        this.assertText('Hello!');
+      }).then(() => {
+        return this.visit('/goodbye');
+      }).then(() => {
+        this.assertText('Goodbye!');
+      });
     });
   }
-});
-
-QUnit.test('Router.map returns an Ember Router class', function () {
-  expect(1);
-
-  var ret = App.Router.map(function() {
-    this.route('hello');
-  });
-
-  ok(Ember.Router.detect(ret));
-});
-
-QUnit.test('Router.map can be called multiple times', function () {
-  expect(4);
-
-  Ember.TEMPLATES.hello = compile('Hello!');
-  Ember.TEMPLATES.goodbye = compile('Goodbye!');
-
-  App.Router.map(function() {
-    this.route('hello');
-  });
-
-  App.Router.map(function() {
-    this.route('goodbye');
-  });
-
-  bootApplication();
-
-  handleURL('/hello');
-
-  equal(jQuery('#qunit-fixture').text(), 'Hello!', 'The hello template was rendered');
-
-  handleURL('/goodbye');
-
-  equal(jQuery('#qunit-fixture').text(), 'Goodbye!', 'The goodbye template was rendered');
 });

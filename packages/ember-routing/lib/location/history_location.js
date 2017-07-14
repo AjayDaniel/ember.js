@@ -1,17 +1,27 @@
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import { guidFor } from 'ember-metal/utils';
+import {
+  get,
+  set
+} from 'ember-metal';
 
-import EmberObject from 'ember-runtime/system/object';
-import EmberLocation from 'ember-routing/location/api';
-import jQuery from 'ember-views/system/jquery';
+import { Object as EmberObject } from 'ember-runtime';
+import EmberLocation from './api';
 
 /**
 @module ember
 @submodule ember-routing
 */
 
-var popstateFired = false;
+let popstateFired = false;
+
+function _uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r, v;
+    r = Math.random() * 16 | 0;
+    v = c === 'x' ? r : r & 3 | 8;
+    return v.toString(16);
+  });
+}
+
 
 /**
   Ember.HistoryLocation implements the location API using the browser's
@@ -26,8 +36,18 @@ export default EmberObject.extend({
   implementation: 'history',
 
   init() {
+    this._super(...arguments);
+
+    let base = document.querySelector('base');
+    let baseURL = '';
+    if (base) {
+      baseURL = base.getAttribute('href');
+    }
+
+    set(this, 'baseURL', baseURL);
     set(this, 'location', get(this, 'location') || window.location);
-    set(this, 'baseURL', jQuery('base').attr('href') || '');
+
+    this._popstateHandler = undefined;
   },
 
   /**
@@ -37,7 +57,7 @@ export default EmberObject.extend({
     @method initState
   */
   initState() {
-    var history = get(this, 'history') || window.history;
+    let history = get(this, 'history') || window.history;
     set(this, 'history', history);
 
     if (history && 'state' in history) {
@@ -64,19 +84,24 @@ export default EmberObject.extend({
     @return url {String}
   */
   getURL() {
-    var rootURL = get(this, 'rootURL');
-    var location = get(this, 'location');
-    var path = location.pathname;
-    var baseURL = get(this, 'baseURL');
+    let location = get(this, 'location');
+    let path = location.pathname;
 
+    let rootURL = get(this, 'rootURL');
+    let baseURL = get(this, 'baseURL');
+
+    // remove trailing slashes if they exists
     rootURL = rootURL.replace(/\/$/, '');
     baseURL = baseURL.replace(/\/$/, '');
 
-    var url = path.replace(baseURL, '').replace(rootURL, '');
-    var search = location.search || '';
+    // remove baseURL and rootURL from start of path
+    let url = path
+      .replace(new RegExp(`^${baseURL}(?=/|$)`), '')
+      .replace(new RegExp(`^${rootURL}(?=/|$)`), '')
+      .replace(/\/\/$/g,'/'); // remove extra slashes
 
-    url += search;
-    url += this.getHash();
+    let search = location.search || '';
+    url += search + this.getHash();
 
     return url;
   },
@@ -89,7 +114,7 @@ export default EmberObject.extend({
     @param path {String}
   */
   setURL(path) {
-    var state = this.getState();
+    let state = this.getState();
     path = this.formatURL(path);
 
     if (!state || state.path !== path) {
@@ -106,7 +131,7 @@ export default EmberObject.extend({
     @param path {String}
   */
   replaceURL(path) {
-    var state = this.getState();
+    let state = this.getState();
     path = this.formatURL(path);
 
     if (!state || state.path !== path) {
@@ -119,6 +144,10 @@ export default EmberObject.extend({
     required and if so fetches this._historyState. The state returned
     from getState may be null if an iframe has changed a window's
     history.
+
+    The object returned will contain a `path` for the given state as well
+    as a unique state `id`. The state index will allow the app to distinguish
+    between two states with similar paths but should be unique from one another.
 
     @private
     @method getState
@@ -140,7 +169,7 @@ export default EmberObject.extend({
    @param path {String}
   */
   pushState(path) {
-    var state = { path: path };
+    let state = { path, uuid: _uuid() };
 
     get(this, 'history').pushState(state, null, path);
 
@@ -158,7 +187,8 @@ export default EmberObject.extend({
    @param path {String}
   */
   replaceState(path) {
-    var state = { path: path };
+    let state = { path, uuid: _uuid() };
+
     get(this, 'history').replaceState(state, null, path);
 
     this._historyState = state;
@@ -176,16 +206,18 @@ export default EmberObject.extend({
     @param callback {Function}
   */
   onUpdateURL(callback) {
-    var guid = guidFor(this);
+    this._removeEventListener();
 
-    jQuery(window).on(`popstate.ember-location-${guid}`, (e) => {
+    this._popstateHandler = () => {
       // Ignore initial page load popstate event in Chrome
       if (!popstateFired) {
         popstateFired = true;
         if (this.getURL() === this._previousURL) { return; }
       }
       callback(this.getURL());
-    });
+    };
+
+    window.addEventListener('popstate', this._popstateHandler);
   },
 
   /**
@@ -197,13 +229,16 @@ export default EmberObject.extend({
     @return formatted url {String}
   */
   formatURL(url) {
-    var rootURL = get(this, 'rootURL');
-    var baseURL = get(this, 'baseURL');
+    let rootURL = get(this, 'rootURL');
+    let baseURL = get(this, 'baseURL');
 
     if (url !== '') {
+      // remove trailing slashes if they exists
       rootURL = rootURL.replace(/\/$/, '');
       baseURL = baseURL.replace(/\/$/, '');
-    } else if (baseURL.match(/^\//) && rootURL.match(/^\//)) {
+    } else if (baseURL[0] === '/' && rootURL[0] === '/') {
+      // if baseURL and rootURL both start with a slash
+      // ... remove trailing slash from baseURL if it exists
       baseURL = baseURL.replace(/\/$/, '');
     }
 
@@ -217,9 +252,7 @@ export default EmberObject.extend({
     @method willDestroy
   */
   willDestroy() {
-    var guid = guidFor(this);
-
-    jQuery(window).off(`popstate.ember-location-${guid}`);
+    this._removeEventListener();
   },
 
   /**
@@ -229,5 +262,11 @@ export default EmberObject.extend({
 
     @method getHash
   */
-  getHash: EmberLocation._getHash
+  getHash: EmberLocation._getHash,
+
+  _removeEventListener() {
+    if (this._popstateHandler) {
+      window.removeEventListener('popstate', this._popstateHandler);
+    }
+  }
 });

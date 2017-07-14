@@ -1,4 +1,8 @@
-import Ember from 'ember-metal/core';
+/* eslint no-console:off */
+/* global console */
+
+import { ENV } from 'ember-environment';
+import { EMBER_IMPROVED_INSTRUMENTATION } from 'ember/features';
 
 /**
   The purpose of the Ember Instrumentation module is
@@ -9,11 +13,11 @@ import Ember from 'ember-metal/core';
 
   ```javascript
   Ember.subscribe("render", {
-    before: function(name, timestamp, payload) {
+    before(name, timestamp, payload) {
 
     },
 
-    after: function(name, timestamp, payload) {
+    after(name, timestamp, payload) {
 
     }
   });
@@ -47,14 +51,14 @@ import Ember from 'ember-metal/core';
   @static
   @private
 */
-export var subscribers = [];
-var cache = {};
+export let subscribers = [];
+let cache = {};
 
-var populateListeners = function(name) {
-  var listeners = [];
-  var subscriber;
+function populateListeners(name) {
+  let listeners = [];
+  let subscriber;
 
-  for (var i = 0, l = subscribers.length; i < l; i++) {
+  for (let i = 0; i < subscribers.length; i++) {
     subscriber = subscribers[i];
     if (subscriber.regex.test(name)) {
       listeners.push(subscriber.object);
@@ -63,11 +67,11 @@ var populateListeners = function(name) {
 
   cache[name] = listeners;
   return listeners;
-};
+}
 
-var time = (function() {
-  var perf = 'undefined' !== typeof window ? window.performance || {} : {};
-  var fn = perf.now || perf.mozNow || perf.webkitNow || perf.msNow || perf.oNow;
+const time = (() => {
+  let perf = 'undefined' !== typeof window ? window.performance || {} : {};
+  let fn = perf.now || perf.mozNow || perf.webkitNow || perf.msNow || perf.oNow;
   // fn.bind will be available in all the browsers that support the advanced window.performance... ;-)
   return fn ? fn.bind(perf) : () => {
     return +new Date();
@@ -95,8 +99,8 @@ export function instrument(name, _payload, callback, binding) {
   if (subscribers.length === 0) {
     return callback.call(binding);
   }
-  var payload = _payload || {};
-  var finalizer = _instrumentStart(name, () => payload);
+  let payload = _payload || {};
+  let finalizer = _instrumentStart(name, () => payload);
 
   if (finalizer) {
     return withFinalizer(callback, finalizer, payload, binding);
@@ -105,53 +109,70 @@ export function instrument(name, _payload, callback, binding) {
   }
 }
 
+let flaggedInstrument;
+if (EMBER_IMPROVED_INSTRUMENTATION) {
+  flaggedInstrument = instrument;
+} else {
+  flaggedInstrument = (name, payload, callback) => callback();
+}
+export { flaggedInstrument };
+
 function withFinalizer(callback, finalizer, payload, binding) {
+  let result;
   try {
-    return callback.call(binding);
-  } catch(e) {
+    result = callback.call(binding);
+  } catch (e) {
     payload.exception = e;
-    return payload;
+    result = payload;
   } finally {
-    return finalizer();
+    finalizer();
   }
+  return result;
 }
 
+function NOOP() {}
+
 // private for now
-export function _instrumentStart(name, _payload) {
-  var listeners = cache[name];
+export function _instrumentStart(name, _payload, _payloadParam) {
+  if (subscribers.length === 0) {
+    return NOOP;
+  }
+
+  let listeners = cache[name];
 
   if (!listeners) {
     listeners = populateListeners(name);
   }
 
   if (listeners.length === 0) {
-    return;
+    return NOOP;
   }
 
-  var payload = _payload();
+  let payload = _payload(_payloadParam);
 
-  var STRUCTURED_PROFILE = Ember.STRUCTURED_PROFILE;
-  var timeName;
+  let STRUCTURED_PROFILE = ENV.STRUCTURED_PROFILE;
+  let timeName;
   if (STRUCTURED_PROFILE) {
-    timeName = name + ': ' + payload.object;
+    timeName = `${name}: ${payload.object}`;
     console.time(timeName);
   }
 
-  var l = listeners.length;
-  var beforeValues = new Array(l);
-  var i, listener;
-  var timestamp = time();
-  for (i = 0; i < l; i++) {
+  let beforeValues = new Array(listeners.length);
+  let i, listener;
+  let timestamp = time();
+  for (i = 0; i < listeners.length; i++) {
     listener = listeners[i];
     beforeValues[i] = listener.before(name, timestamp, payload);
   }
 
   return function _instrumentEnd() {
-    var i, l, listener;
-    var timestamp = time();
-    for (i = 0, l = listeners.length; i < l; i++) {
+    let i, listener;
+    let timestamp = time();
+    for (i = 0; i < listeners.length; i++) {
       listener = listeners[i];
-      listener.after(name, timestamp, payload, beforeValues[i]);
+      if (typeof listener.after === 'function') {
+        listener.after(name, timestamp, payload, beforeValues[i]);
+      }
     }
 
     if (STRUCTURED_PROFILE) {
@@ -173,11 +194,11 @@ export function _instrumentStart(name, _payload) {
   @private
 */
 export function subscribe(pattern, object) {
-  var paths = pattern.split('.');
-  var path;
-  var regex = [];
+  let paths = pattern.split('.');
+  let path;
+  let regex = [];
 
-  for (var i = 0, l = paths.length; i < l; i++) {
+  for (let i = 0; i < paths.length; i++) {
     path = paths[i];
     if (path === '*') {
       regex.push('[^\\.]*');
@@ -187,12 +208,12 @@ export function subscribe(pattern, object) {
   }
 
   regex = regex.join('\\.');
-  regex = regex + '(\\..*)?';
+  regex = `${regex}(\\..*)?`;
 
-  var subscriber = {
-    pattern: pattern,
-    regex: new RegExp('^' + regex + '$'),
-    object: object
+  let subscriber = {
+    pattern,
+    regex: new RegExp(`^${regex}$`),
+    object
   };
 
   subscribers.push(subscriber);
@@ -211,9 +232,9 @@ export function subscribe(pattern, object) {
   @private
 */
 export function unsubscribe(subscriber) {
-  var index;
+  let index;
 
-  for (var i = 0, l = subscribers.length; i < l; i++) {
+  for (let i = 0; i < subscribers.length; i++) {
     if (subscribers[i] === subscriber) {
       index = i;
     }

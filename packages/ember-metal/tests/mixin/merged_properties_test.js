@@ -1,91 +1,94 @@
-import EmberObject from 'ember-runtime/system/object';
-import { get } from 'ember-metal/property_get';
-import { mixin, Mixin } from 'ember-metal/mixin';
+import { Object as EmberObject } from 'ember-runtime';
+import {
+  get,
+  mixin,
+  Mixin
+} from '../..';
 
 QUnit.module('Mixin mergedProperties');
 
 QUnit.test('defining mergedProperties should merge future version', function() {
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: { a: true, b: true, c: true }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     foo: { d: true, e: true, f: true }
   });
 
-  var obj = mixin({}, MixinA, MixinB);
+  let obj = mixin({}, MixinA, MixinB);
   deepEqual(get(obj, 'foo'),
     { a: true, b: true, c: true, d: true, e: true, f: true });
 });
 
 QUnit.test('defining mergedProperties on future mixin should merged into past', function() {
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     foo: { a: true, b: true, c: true }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     mergedProperties: ['foo'],
     foo: { d: true, e: true, f: true }
   });
 
-  var obj = mixin({}, MixinA, MixinB);
+  let obj = mixin({}, MixinA, MixinB);
   deepEqual(get(obj, 'foo'),
     { a: true, b: true, c: true, d: true, e: true, f: true });
 });
 
 QUnit.test('defining mergedProperties with null properties should keep properties null', function() {
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: null
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     foo: null
   });
 
-  var obj = mixin({}, MixinA, MixinB);
+  let obj = mixin({}, MixinA, MixinB);
   equal(get(obj, 'foo'), null);
 });
 
 QUnit.test('mergedProperties\' properties can get overwritten', function() {
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: { a: 1 }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     foo: { a: 2 }
   });
 
-  var obj = mixin({}, MixinA, MixinB);
+  let obj = mixin({}, MixinA, MixinB);
   deepEqual(get(obj, 'foo'), { a: 2 });
 });
 
 QUnit.test('mergedProperties should be concatenated', function() {
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: { a: true, b: true, c: true }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     mergedProperties: 'bar',
     foo: { d: true, e: true, f: true },
     bar: { a: true, l: true }
   });
 
-  var MixinC = Mixin.create({
+  let MixinC = Mixin.create({
     bar: { e: true, x: true }
   });
 
-  var obj = mixin({}, MixinA, MixinB, MixinC);
+  let obj = mixin({}, MixinA, MixinB, MixinC);
   deepEqual(get(obj, 'mergedProperties'), ['foo', 'bar'], 'get mergedProperties');
   deepEqual(get(obj, 'foo'), { a: true, b: true, c: true, d: true, e: true, f: true }, 'get foo');
   deepEqual(get(obj, 'bar'), { a: true, l: true, e: true, x: true }, 'get bar');
 });
 
 QUnit.test('mergedProperties should exist even if not explicitly set on create', function() {
-  var AnObj = EmberObject.extend({
+  let AnObj = EmberObject.extend({
     mergedProperties: ['options'],
     options: {
       a: 'a',
@@ -95,7 +98,7 @@ QUnit.test('mergedProperties should exist even if not explicitly set on create',
     }
   });
 
-  var obj = AnObj.create({
+  let obj = AnObj.create({
     options: {
       a: 'A'
     }
@@ -105,10 +108,33 @@ QUnit.test('mergedProperties should exist even if not explicitly set on create',
   equal(get(obj, 'options').b.c, 'ccc');
 });
 
+QUnit.test('defining mergedProperties at create time should not modify the prototype', function() {
+  let AnObj = EmberObject.extend({
+    mergedProperties: ['options'],
+    options: {
+      a: 1
+    }
+  });
+
+  let objA = AnObj.create({
+    options: {
+      a: 2
+    }
+  });
+  let objB = AnObj.create({
+    options: {
+      a: 3
+    }
+  });
+
+  equal(get(objA, 'options').a, 2);
+  equal(get(objB, 'options').a, 3);
+});
+
 QUnit.test('mergedProperties\' overwriting methods can call _super', function() {
   expect(4);
 
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: {
       meth(a) {
@@ -118,7 +144,7 @@ QUnit.test('mergedProperties\' overwriting methods can call _super', function() 
     }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     foo: {
       meth(a) {
         ok(true, 'MixinB\'s `foo.meth` method called');
@@ -127,7 +153,7 @@ QUnit.test('mergedProperties\' overwriting methods can call _super', function() 
     }
   });
 
-  var MixinC = Mixin.create({
+  let MixinC = Mixin.create({
     foo: {
       meth(a) {
         ok(true, 'MixinC\'s `foo.meth` method called');
@@ -136,23 +162,23 @@ QUnit.test('mergedProperties\' overwriting methods can call _super', function() 
     }
   });
 
-  var obj = mixin({}, MixinA, MixinB, MixinC);
+  let obj = mixin({}, MixinA, MixinB, MixinC);
   equal(obj.foo.meth('WOOT'), 'WAT');
 });
 
 QUnit.test('Merging an Array should raise an error', function() {
   expect(1);
 
-  var MixinA = Mixin.create({
+  let MixinA = Mixin.create({
     mergedProperties: ['foo'],
     foo: { a: true, b: true, c: true }
   });
 
-  var MixinB = Mixin.create({
+  let MixinB = Mixin.create({
     foo: ['a']
   });
 
-  expectAssertion(function() {
+  expectAssertion(() => {
     mixin({}, MixinA, MixinB);
   }, 'You passed in `["a"]` as the value for `foo` but `foo` cannot be an Array');
 });

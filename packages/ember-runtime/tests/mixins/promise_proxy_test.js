@@ -1,14 +1,13 @@
-import {get} from 'ember-metal/property_get';
-import run from 'ember-metal/run_loop';
-import ObjectProxy from 'ember-runtime/system/object_proxy';
-import PromiseProxyMixin from 'ember-runtime/mixins/promise_proxy';
-import EmberRSVP from 'ember-runtime/ext/rsvp';
+import { get, run } from 'ember-metal';
+import ObjectProxy from '../../system/object_proxy';
+import PromiseProxyMixin from '../../mixins/promise_proxy';
+import EmberRSVP from '../../ext/rsvp';
 import {
   onerrorDefault
-} from 'ember-runtime/ext/rsvp';
+} from '../../ext/rsvp';
 import * as RSVP from 'rsvp';
 
-var ObjectPromiseProxy;
+let ObjectPromiseProxy;
 
 QUnit.test('present on ember namespace', function() {
   ok(PromiseProxyMixin, 'expected PromiseProxyMixin to exist');
@@ -17,11 +16,15 @@ QUnit.test('present on ember namespace', function() {
 QUnit.module('Ember.PromiseProxy - ObjectProxy', {
   setup() {
     ObjectPromiseProxy = ObjectProxy.extend(PromiseProxyMixin);
+  },
+
+  teardown() {
+    RSVP.on('error', onerrorDefault);
   }
 });
 
 QUnit.test('no promise, invoking then should raise', function() {
-  var proxy = ObjectPromiseProxy.create();
+  let proxy = ObjectPromiseProxy.create();
 
   throws(function() {
     proxy.then(function() { return this; }, function() { return this; });
@@ -29,25 +32,22 @@ QUnit.test('no promise, invoking then should raise', function() {
 });
 
 QUnit.test('fulfillment', function() {
-  var value = {
+  let value = {
     firstName: 'stef',
     lastName: 'penner'
   };
 
-  var deferred = RSVP.defer();
+  let deferred = RSVP.defer();
 
-  var proxy = ObjectPromiseProxy.create({
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
-  var didFulfillCount = 0;
-  var didRejectCount  = 0;
+  let didFulfillCount = 0;
+  let didRejectCount  = 0;
 
-  proxy.then(function() {
-    didFulfillCount++;
-  }, function() {
-    didRejectCount++;
-  });
+  proxy.then(() => didFulfillCount++,
+             () => didRejectCount++);
 
   equal(get(proxy, 'content'), undefined, 'expects the proxy to have no content');
   equal(get(proxy, 'reason'), undefined, 'expects the proxy to have no reason');
@@ -92,20 +92,17 @@ QUnit.test('fulfillment', function() {
 });
 
 QUnit.test('rejection', function() {
-  var reason = new Error('failure');
-  var deferred = RSVP.defer();
-  var proxy = ObjectPromiseProxy.create({
+  let reason = new Error('failure');
+  let deferred = RSVP.defer();
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
-  var didFulfillCount = 0;
-  var didRejectCount  = 0;
+  let didFulfillCount = 0;
+  let didRejectCount  = 0;
 
-  proxy.then(function() {
-    didFulfillCount++;
-  }, function() {
-    didRejectCount++;
-  });
+  proxy.then(() => didFulfillCount++,
+             () => didRejectCount++);
 
   equal(get(proxy, 'content'), undefined, 'expects the proxy to have no content');
   equal(get(proxy, 'reason'), undefined, 'expects the proxy to have no reason');
@@ -153,10 +150,10 @@ QUnit.test('unhandled rejects still propagate to RSVP.on(\'error\', ...) ', func
   RSVP.on('error', onerror);
   RSVP.off('error', onerrorDefault);
 
-  var expectedReason = new Error('failure');
-  var deferred = RSVP.defer();
+  let expectedReason = new Error('failure');
+  let deferred = RSVP.defer();
 
-  var proxy = ObjectPromiseProxy.create({
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
@@ -189,17 +186,17 @@ QUnit.test('should work with promise inheritance', function() {
   PromiseSubclass.prototype.constructor = PromiseSubclass;
   PromiseSubclass.cast = RSVP.Promise.cast;
 
-  var proxy = ObjectPromiseProxy.create({
-    promise: new PromiseSubclass(function() { })
+  let proxy = ObjectPromiseProxy.create({
+    promise: new PromiseSubclass(() => { })
   });
 
   ok(proxy.then() instanceof PromiseSubclass, 'promise proxy respected inheritance');
 });
 
 QUnit.test('should reset isFulfilled and isRejected when promise is reset', function() {
-  var deferred = EmberRSVP.defer();
+  let deferred = EmberRSVP.defer();
 
-  var proxy = ObjectPromiseProxy.create({
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
@@ -215,7 +212,7 @@ QUnit.test('should reset isFulfilled and isRejected when promise is reset', func
   equal(get(proxy, 'isRejected'), false, 'expects the proxy to indicate that it is not rejected');
   equal(get(proxy, 'isFulfilled'), true, 'expects the proxy to indicate that it is fulfilled');
 
-  var anotherDeferred = EmberRSVP.defer();
+  let anotherDeferred = EmberRSVP.defer();
   proxy.set('promise', anotherDeferred.promise);
 
   equal(get(proxy, 'isPending'), true, 'expects the proxy to indicate that it is loading');
@@ -232,34 +229,110 @@ QUnit.test('should reset isFulfilled and isRejected when promise is reset', func
 });
 
 QUnit.test('should have content when isFulfilled is set', function() {
-  var deferred = EmberRSVP.defer();
+  let deferred = EmberRSVP.defer();
 
-  var proxy = ObjectPromiseProxy.create({
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
-  proxy.addObserver('isFulfilled', function() {
-    equal(get(proxy, 'content'), true);
-  });
+  proxy.addObserver('isFulfilled', () => equal(get(proxy, 'content'), true));
 
   run(deferred, 'resolve', true);
 });
 
 QUnit.test('should have reason when isRejected is set', function() {
-  var error = new Error('Y U REJECT?!?');
-  var deferred = EmberRSVP.defer();
+  let error = new Error('Y U REJECT?!?');
+  let deferred = EmberRSVP.defer();
 
-  var proxy = ObjectPromiseProxy.create({
+  let proxy = ObjectPromiseProxy.create({
     promise: deferred.promise
   });
 
-  proxy.addObserver('isRejected', function() {
-    equal(get(proxy, 'reason'), error);
-  });
+  proxy.addObserver('isRejected', () => equal(get(proxy, 'reason'), error));
 
   try {
     run(deferred, 'reject', error);
-  } catch(e) {
+  } catch (e) {
     equal(e, error);
   }
+});
+
+QUnit.test('should not error if promise is resolved after proxy has been destroyed', function() {
+  let deferred = EmberRSVP.defer();
+
+  let proxy = ObjectPromiseProxy.create({
+    promise: deferred.promise
+  });
+
+  proxy.then(() => {}, () => {});
+
+  run(proxy, 'destroy');
+
+  run(deferred, 'resolve', true);
+
+  ok(true, 'resolving the promise after the proxy has been destroyed does not raise an error');
+});
+
+QUnit.test('should not error if promise is rejected after proxy has been destroyed', function() {
+  let deferred = EmberRSVP.defer();
+
+  let proxy = ObjectPromiseProxy.create({
+    promise: deferred.promise
+  });
+
+  proxy.then(() => {}, () => {});
+
+  run(proxy, 'destroy');
+
+  run(deferred, 'reject', 'some reason');
+
+  ok(true, 'rejecting the promise after the proxy has been destroyed does not raise an error');
+});
+
+QUnit.test('promise chain is not broken if promised is resolved after proxy has been destroyed', function() {
+  let deferred = EmberRSVP.defer();
+  let expectedValue = {};
+  let receivedValue;
+  let didResolveCount = 0;
+
+  let proxy = ObjectPromiseProxy.create({
+    promise: deferred.promise
+  });
+
+  proxy.then((value) => {
+    receivedValue = value;
+    didResolveCount++;
+  }, () => {});
+
+  run(proxy, 'destroy');
+
+  run(deferred, 'resolve', expectedValue);
+
+  equal(didResolveCount, 1, 'callback called');
+  equal(receivedValue, expectedValue, 'passed value is the value the promise was resolved with');
+});
+
+QUnit.test('promise chain is not broken if promised is rejected after proxy has been destroyed', function() {
+  let deferred = EmberRSVP.defer();
+  let expectedReason = 'some reason';
+  let receivedReason;
+  let didRejectCount = 0;
+
+  let proxy = ObjectPromiseProxy.create({
+    promise: deferred.promise
+  });
+
+  proxy.then(
+    () => {},
+    (reason) => {
+      receivedReason = reason;
+      didRejectCount++;
+    });
+
+  run(proxy, 'destroy');
+
+  run(deferred, 'reject', expectedReason);
+
+  equal(didRejectCount, 1, 'callback called');
+  equal(receivedReason, expectedReason, 'passed reason is the reason the promise was rejected for');
 });

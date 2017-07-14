@@ -1,11 +1,11 @@
-import { get } from 'ember-metal/property_get';
-import setProperties from 'ember-metal/set_properties';
-import { computed } from 'ember-metal/computed';
-import { Mixin } from 'ember-metal/mixin';
-import EmberError from 'ember-metal/error';
-
-var not = computed.not;
-var or = computed.or;
+import {
+  get,
+  setProperties,
+  computed,
+  Mixin
+} from 'ember-metal';
+import { Error as EmberError } from 'ember-debug';
+import { not, or } from '../computed/computed_macros';
 
 /**
   @module ember
@@ -18,17 +18,21 @@ function tap(proxy, promise) {
     isRejected: false
   });
 
-  return promise.then(function(value) {
-    setProperties(proxy, {
-      content: value,
-      isFulfilled: true
-    });
+  return promise.then(value => {
+    if (!proxy.isDestroyed && !proxy.isDestroying) {
+      setProperties(proxy, {
+        content: value,
+        isFulfilled: true
+      });
+    }
     return value;
-  }, function(reason) {
-    setProperties(proxy, {
-      reason: reason,
-      isRejected: true
-    });
+  }, reason => {
+    if (!proxy.isDestroyed && !proxy.isDestroying) {
+      setProperties(proxy, {
+        reason,
+        isRejected: true
+      });
+    }
     throw reason;
   }, 'Ember: PromiseProxy');
 }
@@ -37,10 +41,10 @@ function tap(proxy, promise) {
   A low level mixin making ObjectProxy promise-aware.
 
   ```javascript
-  var ObjectPromiseProxy = Ember.ObjectProxy.extend(Ember.PromiseProxyMixin);
+  let ObjectPromiseProxy = Ember.ObjectProxy.extend(Ember.PromiseProxyMixin);
 
-  var proxy = ObjectPromiseProxy.create({
-    promise: $.getJSON('/some/remote/data.json')
+  let proxy = ObjectPromiseProxy.create({
+    promise: Ember.RSVP.cast($.getJSON('/some/remote/data.json'))
   });
 
   proxy.then(function(json){
@@ -62,6 +66,9 @@ function tap(proxy, promise) {
 
   When the $.getJSON completes, and the promise is fulfilled
   with json, the life cycle attributes will update accordingly.
+  Note that $.getJSON doesn't return an ECMA specified promise,
+  it is useful to wrap this with an `RSVP.cast` so that it behaves
+  as a spec compliant promise.
 
   ```javascript
   proxy.get('isPending')   //=> false
@@ -97,7 +104,7 @@ export default Mixin.create({
     @default null
     @public
   */
-  reason:  null,
+  reason: null,
 
   /**
     Once the proxied promise has settled this will become `false`.
@@ -106,7 +113,7 @@ export default Mixin.create({
     @default true
     @public
   */
-  isPending:  not('isSettled').readOnly(),
+  isPending: not('isSettled').readOnly(),
 
   /**
     Once the proxied promise has settled this will become `true`.
@@ -115,7 +122,7 @@ export default Mixin.create({
     @default false
     @public
   */
-  isSettled:  or('isRejected', 'isFulfilled').readOnly(),
+  isSettled: or('isRejected', 'isFulfilled').readOnly(),
 
   /**
     Will become `true` if the proxied promise is rejected.
@@ -124,7 +131,7 @@ export default Mixin.create({
     @default false
     @public
   */
-  isRejected:  false,
+  isRejected: false,
 
   /**
     Will become `true` if the proxied promise is fulfilled.
@@ -203,7 +210,7 @@ export default Mixin.create({
 
 function promiseAlias(name) {
   return function () {
-    var promise = get(this, 'promise');
+    let promise = get(this, 'promise');
     return promise[name](...arguments);
   };
 }

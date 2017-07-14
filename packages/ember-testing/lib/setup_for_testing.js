@@ -1,23 +1,18 @@
-import Ember from 'ember-metal/core';
-// import Test from "ember-testing/test";  // ES6TODO: fix when cycles are supported
-import QUnitAdapter from 'ember-testing/adapters/qunit';
-import jQuery from 'ember-views/system/jquery';
+/* global self */
 
-var Test, requests;
-
-function incrementAjaxPendingRequests(_, xhr) {
-  requests.push(xhr);
-  Test.pendingAjaxRequests = requests.length;
-}
-
-function decrementAjaxPendingRequests(_, xhr) {
-  for (var i = 0;i < requests.length;i++) {
-    if (xhr === requests[i]) {
-      requests.splice(i, 1);
-    }
-  }
-  Test.pendingAjaxRequests = requests.length;
-}
+import { setTesting } from 'ember-debug';
+import { jQuery } from 'ember-views';
+import {
+  getAdapter,
+  setAdapter
+} from './test/adapter';
+import {
+  incrementPendingRequests,
+  decrementPendingRequests,
+  clearPendingRequests
+} from './test/pending_requests';
+import Adapter from './adapters/adapter';
+import QUnitAdapter from './adapters/qunit';
 
 /**
   Sets Ember up for testing. This is useful to perform
@@ -32,20 +27,21 @@ function decrementAjaxPendingRequests(_, xhr) {
   @private
 */
 export default function setupForTesting() {
-  if (!Test) { Test = requireModule('ember-testing/test')['default']; }
+  setTesting(true);
 
-  Ember.testing = true;
-
+  let adapter = getAdapter();
   // if adapter is not manually set default to QUnit
-  if (!Test.adapter) {
-    Test.adapter = QUnitAdapter.create();
+  if (!adapter) {
+    setAdapter((typeof self.QUnit === 'undefined') ? new Adapter() : new QUnitAdapter());
   }
 
-  requests = [];
-  Test.pendingAjaxRequests = requests.length;
+  if (jQuery) {
+    jQuery(document).off('ajaxSend', incrementPendingRequests);
+    jQuery(document).off('ajaxComplete', decrementPendingRequests);
 
-  jQuery(document).off('ajaxSend', incrementAjaxPendingRequests);
-  jQuery(document).off('ajaxComplete', decrementAjaxPendingRequests);
-  jQuery(document).on('ajaxSend', incrementAjaxPendingRequests);
-  jQuery(document).on('ajaxComplete', decrementAjaxPendingRequests);
+    clearPendingRequests();
+
+    jQuery(document).on('ajaxSend', incrementPendingRequests);
+    jQuery(document).on('ajaxComplete', decrementPendingRequests);
+  }
 }

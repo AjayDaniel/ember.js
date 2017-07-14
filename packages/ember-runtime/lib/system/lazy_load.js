@@ -1,16 +1,15 @@
 /*globals CustomEvent */
 
-import Ember from 'ember-metal/core'; // Ember.ENV.EMBER_LOAD_HOOKS
-import { A as emberA } from 'ember-runtime/system/native_array';
+import { ENV, environment } from 'ember-environment';
 
 /**
   @module ember
   @submodule ember-runtime
 */
 
-var loadHooks = Ember.ENV.EMBER_LOAD_HOOKS || {};
-var loaded = {};
-export var _loaded = loaded;
+const loadHooks = ENV.EMBER_LOAD_HOOKS || {};
+const loaded = {};
+export let _loaded = loaded;
 
 /**
   Detects when a specific package of Ember (e.g. 'Ember.Application')
@@ -32,10 +31,10 @@ export var _loaded = loaded;
   @private
 */
 export function onLoad(name, callback) {
-  var object = loaded[name];
+  let object = loaded[name];
 
-  loadHooks[name] = loadHooks[name] || emberA();
-  loadHooks[name].pushObject(callback);
+  loadHooks[name] = loadHooks[name] || [];
+  loadHooks[name].push(callback);
 
   if (object) {
     callback(object);
@@ -54,13 +53,14 @@ export function onLoad(name, callback) {
 */
 export function runLoadHooks(name, object) {
   loaded[name] = object;
+  let window = environment.window;
 
-  if (typeof window === 'object' && typeof window.dispatchEvent === 'function' && typeof CustomEvent === 'function') {
-    var event = new CustomEvent(name, { detail: object, name: name });
+  if (window && typeof CustomEvent === 'function') {
+    let event = new CustomEvent(name, { detail: object, name });
     window.dispatchEvent(event);
   }
 
   if (loadHooks[name]) {
-    loadHooks[name].forEach((callback) => callback(object));
+    loadHooks[name].forEach(callback => callback(object));
   }
 }

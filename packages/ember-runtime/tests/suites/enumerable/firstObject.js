@@ -1,18 +1,28 @@
-import {SuiteModuleBuilder} from 'ember-runtime/tests/suites/suite';
-import {get} from 'ember-metal/property_get';
+import { SuiteModuleBuilder } from '../suite';
+import { get, set } from 'ember-metal';
 
-var suite = SuiteModuleBuilder.create();
+const suite = SuiteModuleBuilder.create();
 
 suite.module('firstObject');
 
 suite.test('returns first item in enumerable', function() {
-  var obj = this.newObject();
+  let obj = this.newObject();
   equal(get(obj, 'firstObject'), this.toArray(obj)[0]);
 });
 
 suite.test('returns undefined if enumerable is empty', function() {
-  var obj = this.newObject([]);
+  let obj = this.newObject([]);
   equal(get(obj, 'firstObject'), undefined);
+});
+
+suite.test('can not be set', function() {
+  let obj = this.newObject([]);
+
+  equal(get(obj, 'firstObject'), this.toArray(obj)[0]);
+
+  throws(() => {
+    set(obj, 'firstObject', 'foo!');
+  }, /Cannot set read-only property "firstObject" on object/);
 });
 
 export default suite;

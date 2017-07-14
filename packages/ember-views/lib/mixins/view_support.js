@@ -1,133 +1,76 @@
-import { assert, deprecate } from 'ember-metal/debug';
-import EmberError from 'ember-metal/error';
-import { get } from 'ember-metal/property_get';
-import run from 'ember-metal/run_loop';
-import { addObserver, removeObserver } from 'ember-metal/observer';
-import { guidFor } from 'ember-metal/utils';
-import { computed } from 'ember-metal/computed';
-import { Mixin } from 'ember-metal/mixin';
+import { guidFor, getOwner } from 'ember-utils';
+import { descriptor, Mixin } from 'ember-metal';
+import { assert, deprecate } from 'ember-debug';
+import { environment } from 'ember-environment';
+import { matches } from '../system/utils';
 import { POST_INIT } from 'ember-runtime/system/core_object';
-import isEnabled from 'ember-metal/features';
-import symbol from 'ember-metal/symbol';
-import { getOwner } from 'container/owner';
-
-const INIT_WAS_CALLED = symbol('INIT_WAS_CALLED');
-
-import jQuery from 'ember-views/system/jquery';
+import jQuery from '../system/jquery';
+import { DEBUG } from 'ember-env-flags';
 
 function K() { return this; }
 
+/**
+ @class ViewMixin
+ @namespace Ember
+ @private
+*/
 export default Mixin.create({
+  /**
+    A list of properties of the view to apply as attributes. If the property
+    is a string value, the value of that string will be applied as the value
+    for an attribute of the property's name.
+
+    The following example creates a tag like `<div priority="high" />`.
+
+    ```javascript
+    Ember.Component.extend({
+      attributeBindings: ['priority'],
+      priority: 'high'
+    });
+    ```
+
+    If the value of the property is a Boolean, the attribute is treated as
+    an HTML Boolean attribute. It will be present if the property is `true`
+    and omitted if the property is `false`.
+
+    The following example creates markup like `<div visible />`.
+
+    ```javascript
+    Ember.Component.extend({
+      attributeBindings: ['visible'],
+      visible: true
+    });
+    ```
+
+    If you would prefer to use a custom value instead of the property name,
+    you can create the same markup as the last example with a binding like
+    this:
+
+    ```javascript
+    Ember.Component.extend({
+      attributeBindings: ['isVisible:visible'],
+      isVisible: true
+    });
+    ```
+
+    This list of attributes is inherited from the component's superclasses,
+    as well.
+
+    @property attributeBindings
+    @type Array
+    @default []
+    @public
+   */
   concatenatedProperties: ['attributeBindings'],
 
-  /**
-    @property isView
-    @type Boolean
-    @default true
-    @static
-    @private
-  */
-  isView: true,
+  [POST_INIT]() {
+    this.trigger('didInitAttrs');
+    this.trigger('didReceiveAttrs');
+  },
 
   // ..........................................................
   // TEMPLATE SUPPORT
   //
-
-  /**
-    The name of the template to lookup if no template is provided.
-
-    By default `Ember.View` will lookup a template with this name in
-    `Ember.TEMPLATES` (a shared global object).
-
-    @property templateName
-    @type String
-    @default null
-    @private
-  */
-  templateName: null,
-
-  /**
-    The name of the layout to lookup if no layout is provided.
-
-    By default `Ember.View` will lookup a template with this name in
-    `Ember.TEMPLATES` (a shared global object).
-
-    @property layoutName
-    @type String
-    @default null
-    @private
-  */
-  layoutName: null,
-
-  /**
-    The template used to render the view. This should be a function that
-    accepts an optional context parameter and returns a string of HTML that
-    will be inserted into the DOM relative to its parent view.
-
-    In general, you should set the `templateName` property instead of setting
-    the template yourself.
-
-    @property template
-    @type Function
-    @private
-  */
-  template: computed({
-    get() {
-      var templateName = get(this, 'templateName');
-      var template = this.templateForName(templateName, 'template');
-      assert('You specified the templateName ' + templateName + ' for ' + this + ', but it did not exist.', !templateName || !!template);
-      return template || get(this, 'defaultTemplate');
-    },
-    set(key, value) {
-      if (value !== undefined) { return value; }
-      return get(this, key);
-    }
-  }),
-
-  /**
-    A view may contain a layout. A layout is a regular template but
-    supersedes the `template` property during rendering. It is the
-    responsibility of the layout template to retrieve the `template`
-    property from the view (or alternatively, call `Handlebars.helpers.yield`,
-    `{{yield}}`) to render it in the correct location.
-
-    This is useful for a view that has a shared wrapper, but which delegates
-    the rendering of the contents of the wrapper to the `template` property
-    on a subclass.
-
-    @property layout
-    @type Function
-    @private
-  */
-  layout: computed({
-    get(key) {
-      var layoutName = get(this, 'layoutName');
-      var layout = this.templateForName(layoutName, 'layout');
-
-      assert('You specified the layoutName ' + layoutName + ' for ' + this + ', but it did not exist.', !layoutName || !!layout);
-
-      return layout || get(this, 'defaultLayout');
-    },
-
-    set(key, value) {
-      return value;
-    }
-  }),
-
-  templateForName(name, type) {
-    if (!name) { return; }
-    assert('templateNames are not allowed to contain periods: ' + name, name.indexOf('.') === -1);
-
-    let owner = getOwner(this);
-
-    if (!owner) {
-      throw new EmberError('Container was not found when looking up a views template. ' +
-                 'This is most likely due to manually instantiating an Ember.View. ' +
-                 'See: http://git.io/EKPpnA');
-    }
-
-    return owner.lookup('template:' + name);
-  },
 
   /**
     Return the nearest ancestor that is an instance of the provided
@@ -137,17 +80,18 @@ export default Mixin.create({
     @param {Class,Mixin} klass Subclass of Ember.View (or Ember.View itself),
            or an instance of Ember.Mixin.
     @return Ember.View
+    @deprecated use `yield` and contextual components for composition instead.
     @private
   */
   nearestOfType(klass) {
-    var view = get(this, 'parentView');
-    var isOfType = klass instanceof Mixin ?
-                   function(view) { return klass.detect(view); } :
-                   function(view) { return klass.detect(view.constructor); };
+    let view = this.parentView;
+    let isOfType = klass instanceof Mixin ?
+                   view => klass.detect(view) :
+                   view => klass.detect(view.constructor);
 
     while (view) {
       if (isOfType(view)) { return view; }
-      view = get(view, 'parentView');
+      view = view.parentView;
     }
   },
 
@@ -157,14 +101,15 @@ export default Mixin.create({
     @method nearestWithProperty
     @param {String} property A property name
     @return Ember.View
+    @deprecated use `yield` and contextual components for composition instead.
     @private
   */
   nearestWithProperty(property) {
-    var view = get(this, 'parentView');
+    let view = this.parentView;
 
     while (view) {
       if (property in view) { return view; }
-      view = get(view, 'parentView');
+      view = view.parentView;
     }
   },
 
@@ -200,7 +145,13 @@ export default Mixin.create({
     @type DOMElement
     @public
   */
-  element: null,
+  element: descriptor({
+    configurable: false,
+    enumerable: false,
+    get() {
+      return this.renderer.getElement(this);
+    }
+  }),
 
   /**
     Returns a jQuery object for this view's element. If you pass in a selector
@@ -217,40 +168,22 @@ export default Mixin.create({
   */
   $(sel) {
     assert('You cannot access this.$() on a component with `tagName: \'\'` specified.', this.tagName !== '');
-    return this._currentState.$(this, sel);
-  },
-
-  forEachChildView(callback) {
-    var childViews = this.childViews;
-
-    if (!childViews) { return this; }
-
-    var len = childViews.length;
-    var view, idx;
-
-    for (idx = 0; idx < len; idx++) {
-      view = childViews[idx];
-      callback(view);
+    if (this.element) {
+      return sel ? jQuery(sel, this.element) : jQuery(this.element);
     }
-
-    return this;
   },
 
   /**
     Appends the view's element to the specified parent element.
-
-    If the view does not have an HTML representation yet, `createElement()`
-    will be called automatically.
 
     Note that this method just schedules the view to be appended; the DOM
     element will not be appended to the given element until all bindings have
     finished synchronizing.
 
     This is not typically a function that you will need to call directly when
-    building your application. You might consider using `Ember.ContainerView`
-    instead. If you do need to use `appendTo`, be sure that the target element
-    you are providing is associated with an `Ember.Application` and does not
-    have an ancestor element that is associated with an Ember view.
+    building your application. If you do need to use `appendTo`, be sure that
+    the target element you are providing is associated with an `Ember.Application`
+    and does not have an ancestor element that is associated with an Ember view.
 
     @method appendTo
     @param {String|DOMElement|jQuery} A selector, element, HTML string, or jQuery object
@@ -258,110 +191,34 @@ export default Mixin.create({
     @private
   */
   appendTo(selector) {
-    if (isEnabled('ember-application-visit')) {
-      let $ = this._environment ? this._environment.options.jQuery : jQuery;
+    let env = this._environment || environment;
+    let target;
 
-      if ($) {
-        let target = $(selector);
+    if (env.hasDOM) {
+      target = typeof selector === 'string' ? document.querySelector(selector) : selector;
 
-        assert('You tried to append to (' + selector + ') but that isn\'t in the DOM', target.length > 0);
-        assert('You cannot append to an existing Ember.View. Consider using Ember.ContainerView instead.', !target.is('.ember-view') && !target.parents().is('.ember-view'));
+      assert(`You tried to append to (${selector}) but that isn't in the DOM`, target);
+      assert('You cannot append to an existing Ember.View.', !matches(target, '.ember-view'));
+      assert('You cannot append to an existing Ember.View.', ((() => {
+        let node = target.parentNode;
+        while (node) {
+          if (node.nodeType !== 9 && matches(node, '.ember-view')) {
+            return false;
+          }
 
-        this.renderer.appendTo(this, target[0]);
-      } else {
-        let target = selector;
+          node = node.parentNode;
+        }
 
-        assert('You tried to append to a selector string (' + selector + ') in an environment without jQuery', typeof target !== 'string');
-        assert('You tried to append to a non-Element (' + selector + ') in an environment without jQuery', typeof selector.appendChild === 'function');
-
-        this.renderer.appendTo(this, target);
-      }
+        return true;
+      }))());
     } else {
-      let target = jQuery(selector);
+      target = selector;
 
-      assert('You tried to append to (' + selector + ') but that isn\'t in the DOM', target.length > 0);
-      assert('You cannot append to an existing Ember.View. Consider using Ember.ContainerView instead.', !target.is('.ember-view') && !target.parents().is('.ember-view'));
-
-      this.renderer.appendTo(this, target[0]);
+      assert(`You tried to append to a selector string (${selector}) in an environment without jQuery`, typeof target !== 'string');
+      assert(`You tried to append to a non-Element (${selector}) in an environment without jQuery`, typeof selector.appendChild === 'function');
     }
 
-    return this;
-  },
-
-  /**
-    @private
-
-    Creates a new DOM element, renders the view into it, then returns the
-    element.
-
-    By default, the element created and rendered into will be a `BODY` element,
-    since this is the default context that views are rendered into when being
-    inserted directly into the DOM.
-
-    ```js
-    var element = view.renderToElement();
-    element.tagName; // => "BODY"
-    ```
-
-    You can override the kind of element rendered into and returned by
-    specifying an optional tag name as the first argument.
-
-    ```js
-    var element = view.renderToElement('table');
-    element.tagName; // => "TABLE"
-    ```
-
-    This method is useful if you want to render the view into an element that
-    is not in the document's body. Instead, a new `body` element, detached from
-    the DOM is returned. FastBoot uses this to serialize the rendered view into
-    a string for transmission over the network.
-
-    ```js
-    app.visit('/').then(function(instance) {
-      var element;
-      Ember.run(function() {
-        element = renderToElement(instance);
-      });
-
-      res.send(serialize(element));
-    });
-    ```
-
-    @method renderToElement
-    @param {String} tagName The tag of the element to create and render into. Defaults to "body".
-    @return {HTMLBodyElement} element
-    @private
-  */
-  renderToElement(tagName) {
-    tagName = tagName || 'body';
-
-    var element = this.renderer._dom.createElement(tagName);
-
-    this.renderer.appendTo(this, element);
-    return element;
-  },
-
-  /**
-    Replaces the content of the specified parent element with this view's
-    element. If the view does not have an HTML representation yet,
-    the element will be generated automatically.
-
-    Note that this method just schedules the view to be appended; the DOM
-    element will not be appended to the given element until all bindings have
-    finished synchronizing
-
-    @method replaceIn
-    @param {String|DOMElement|jQuery} target A selector, element, HTML string, or jQuery object
-    @return {Ember.View} received
-    @private
-  */
-  replaceIn(selector) {
-    var target = jQuery(selector);
-
-    assert('You tried to replace in (' + selector + ') but that isn\'t in the DOM', target.length > 0);
-    assert('You cannot replace an existing Ember.View. Consider using Ember.ContainerView instead.', !target.is('.ember-view') && !target.parents().is('.ember-view'));
-
-    this.renderer.replaceIn(this, target[0]);
+    this.renderer.appendTo(this, target);
 
     return this;
   },
@@ -388,25 +245,6 @@ export default Mixin.create({
   },
 
   /**
-    Removes the view's element from the element to which it is attached.
-
-    @method remove
-    @return {Ember.View} receiver
-    @private
-  */
-  remove() {
-    // What we should really do here is wait until the end of the run loop
-    // to determine if the element has been re-appended to a different
-    // element.
-    // In the interim, we will just re-render if that happens. It is more
-    // important than elements get garbage collected.
-    if (!this.removedFromDOM) { this.destroyElement(); }
-
-    // Set flag to avoid future renders
-    this._willInsert = false;
-  },
-
-  /**
     The HTML `id` of the view's element in the DOM. You can provide this
     value yourself but it must be unique (just as in HTML):
 
@@ -423,10 +261,11 @@ export default Mixin.create({
 
     ```javascript
       export default Ember.Component.extend({
-        setElementId: Ember.on('init', function() {
-          var index = this.get('index');
+        init() {
+          this._super(...arguments);
+          let index = this.get('index');
           this.set('elementId', 'component-id' + index);
-        })
+        }
       });
     ```
 
@@ -449,28 +288,8 @@ export default Mixin.create({
     @private
   */
   findElementInParentElement(parentElem) {
-    var id = '#' + this.elementId;
+    let id = `#${this.elementId}`;
     return jQuery(id)[0] || jQuery(id, parentElem)[0];
-  },
-
-  /**
-    Creates a DOM representation of the view and all of its child views by
-    recursively calling the `render()` method. Once the element is created,
-    it sets the `element` property of the view to the rendered element.
-
-    After the element has been inserted into the DOM, `didInsertElement` will
-    be called on this view and all of its child views.
-
-    @method createElement
-    @return {Ember.View} receiver
-    @private
-  */
-  createElement() {
-    if (this.element) { return this; }
-
-    this.renderer.createElement(this);
-
-    return this;
   },
 
   /**
@@ -482,12 +301,12 @@ export default Mixin.create({
   willInsertElement: K,
 
   /**
-    Called when the element of the view has been inserted into the DOM
-    or after the view was re-rendered. Override this function to do any
-    set up that requires an element in the document body.
+    Called when the element of the view has been inserted into the DOM.
+    Override this function to do any set up that requires an element
+    in the document body.
 
     When a view has children, didInsertElement will be called on the
-    child view(s) first, bubbling upwards through the hierarchy.
+    child view(s) first and on itself afterwards.
 
     @event didInsertElement
     @public
@@ -505,26 +324,17 @@ export default Mixin.create({
   willClearRender: K,
 
   /**
-    Destroys any existing element along with the element for any child views
-    as well. If the view does not currently have a element, then this method
-    will do nothing.
+    You must call `destroy` on a view to destroy the view (and all of its
+    child views). This will remove the view from any parent node, then make
+    sure that the DOM element managed by the view can be released by the
+    memory manager.
 
-    If you implement `willDestroyElement()` on your view, then this method will
-    be invoked on your view before your element is destroyed to give you a
-    chance to clean up any event handlers, etc.
-
-    If you write a `willDestroyElement()` handler, you can assume that your
-    `didInsertElement()` handler was called earlier for the same element.
-
-    You should not call or override this method yourself, but you may
-    want to implement the above callbacks.
-
-    @method destroyElement
-    @return {Ember.View} receiver
+    @method destroy
     @private
   */
-  destroyElement() {
-    return this._currentState.destroyElement(this);
+  destroy() {
+    this._super(...arguments);
+    this._currentState.destroy(this);
   },
 
   /**
@@ -569,52 +379,6 @@ export default Mixin.create({
   // the default case and a user-specified tag.
   tagName: null,
 
-  /*
-    Used to specify a default tagName that can be overridden when extending
-    or invoking from a template.
-
-    @property _defaultTagName
-    @private
-  */
-
-  /**
-    Normally, Ember's component model is "write-only". The component takes a
-    bunch of attributes that it got passed in, and uses them to render its
-    template.
-
-    One nice thing about this model is that if you try to set a value to the
-    same thing as last time, Ember (through HTMLBars) will avoid doing any
-    work on the DOM.
-
-    This is not just a performance optimization. If an attribute has not
-    changed, it is important not to clobber the element's "hidden state".
-    For example, if you set an input's `value` to the same value as before,
-    it will clobber selection state and cursor position. In other words,
-    setting an attribute is not **always** idempotent.
-
-    This method provides a way to read an element's attribute and also
-    update the last value Ember knows about at the same time. This makes
-    setting an attribute idempotent.
-
-    In particular, what this means is that if you get an `<input>` element's
-    `value` attribute and then re-render the template with the same value,
-    it will avoid clobbering the cursor and selection position.
-
-    Since most attribute sets are idempotent in the browser, you typically
-    can get away with reading attributes using jQuery, but the most reliable
-    way to do so is through this method.
-
-    @method readDOMAttr
-    @param {String} name the name of the attribute
-    @return String
-    @public
-  */
-  readDOMAttr(name) {
-    let attr = this._renderNode.childNodes.filter(node => node.attrName === name)[0];
-    if (!attr) { return null; }
-    return attr.getContent();
-  },
-
   // .......................................................
   // CORE DISPLAY METHODS
   //
@@ -632,13 +396,40 @@ export default Mixin.create({
   init() {
     this._super(...arguments);
 
-    if (!this.elementId) {
+    if (!this.elementId && this.tagName !== '') {
       this.elementId = guidFor(this);
     }
 
-    this.scheduledRevalidation = false;
+    // if we find an `eventManager` property, deopt the
+    // `EventDispatcher`'s `canDispatchToEventManager` property
+    // if `null`
+    if (this.eventManager) {
+      let owner = getOwner(this);
+      let dispatcher = owner && owner.lookup('event_dispatcher:main');
 
-    this[INIT_WAS_CALLED] = true;
+      deprecate(
+        `\`eventManager\` has been deprecated in ${this}.`,
+        false,
+        {
+          id: 'ember-views.event-dispatcher.canDispatchToEventManager',
+          until: '2.17.0'
+        }
+      );
+
+      if (dispatcher && !('canDispatchToEventManager' in dispatcher)) {
+        dispatcher.canDispatchToEventManager = true;
+      }
+    }
+
+    deprecate(
+      `[DEPRECATED] didInitAttrs called in ${this.toString()}.`,
+      typeof(this.didInitAttrs) !== 'function',
+      {
+        id: 'ember-views.did-init-attrs',
+        until: '3.0.0',
+        url: 'https://emberjs.com/deprecations/v2.x#toc_ember-component-didinitattrs'
+      }
+    );
 
     assert(
       'Using a custom `.render` function is no longer supported.',
@@ -646,113 +437,8 @@ export default Mixin.create({
     );
   },
 
-  /*
-   This is a special hook implemented in CoreObject, that allows Views/Components
-   to have a way to ensure that `init` fires before `didInitAttrs` / `didReceiveAttrs`
-   (so that `this._super` in init does not trigger `didReceiveAttrs` before the classes
-   own `init` is finished).
-
-   @method __postInitInitialization
-   @private
-   */
-  [POST_INIT]: function() {
-    this._super(...arguments);
-
-    assert(
-      `You must call \`this._super(...arguments);\` when implementing \`init\` in a component. Please update ${this} to call \`this._super\` from \`init\`.`,
-      this[INIT_WAS_CALLED]
-    );
-
-    this.renderer.componentInitAttrs(this, this.attrs || {});
-  },
-
   __defineNonEnumerable(property) {
     this[property.name] = property.descriptor.value;
-  },
-
-  revalidate() {
-    this.renderer.revalidateTopLevelView(this);
-    this.scheduledRevalidation = false;
-  },
-
-  scheduleRevalidate(node, label, manualRerender) {
-    if (node && !this._dispatching && this.env.renderedNodes.has(node)) {
-      if (manualRerender) {
-        deprecate(
-          `You manually rerendered ${label} (a parent component) from a child component during the rendering process. This rarely worked in Ember 1.x and will be removed in Ember 3.0`,
-          false,
-          { id: 'ember-views.manual-parent-rerender', until: '3.0.0' }
-        );
-      } else {
-        deprecate(
-          `You modified ${label} twice in a single render. This was unreliable in Ember 1.x and will be removed in Ember 3.0`,
-          false,
-          { id: 'ember-views.render-double-modify', until: '3.0.0' }
-        );
-      }
-      run.scheduleOnce('render', this, this.revalidate);
-      return;
-    }
-
-    deprecate(
-      `A property of ${this} was modified inside the ${this._dispatching} hook. You should never change properties on components, services or models during ${this._dispatching} because it causes significant performance degradation.`,
-      !this._dispatching,
-      { id: 'ember-views.dispatching-modify-property', until: '3.0.0' }
-    );
-
-    if (!this.scheduledRevalidation || this._dispatching) {
-      this.scheduledRevalidation = true;
-      run.scheduleOnce('render', this, this.revalidate);
-    }
-  },
-
-  templateRenderer: null,
-
-  /**
-    Removes the view from its `parentView`, if one is found. Otherwise
-    does nothing.
-
-    @method removeFromParent
-    @return {Ember.View} receiver
-    @private
-  */
-  removeFromParent() {
-    var parent = this.parentView;
-
-    // Remove DOM element from parent
-    this.remove();
-
-    if (parent) { parent.removeChild(this); }
-    return this;
-  },
-
-  /**
-    You must call `destroy` on a view to destroy the view (and all of its
-    child views). This will remove the view from any parent node, then make
-    sure that the DOM element managed by the view can be released by the
-    memory manager.
-
-    @method destroy
-    @private
-  */
-  destroy() {
-    // get parentView before calling super because it'll be destroyed
-    var parentView = this.parentView;
-    var viewName = this.viewName;
-
-    if (!this._super(...arguments)) { return; }
-
-    // remove from non-virtual parent view if viewName was specified
-    if (viewName && parentView) {
-      parentView.set(viewName, null);
-    }
-
-    // Destroy HTMLbars template
-    if (this.lastResult) {
-      this.lastResult.destroy();
-    }
-
-    return this;
   },
 
   // .......................................................
@@ -769,62 +455,5 @@ export default Mixin.create({
   */
   handleEvent(eventName, evt) {
     return this._currentState.handleEvent(this, eventName, evt);
-  },
-
-  /**
-    Registers the view in the view registry, keyed on the view's `elementId`.
-    This is used by the EventDispatcher to locate the view in response to
-    events.
-
-    This method should only be called once the view has been inserted into the
-    DOM.
-
-    @method _register
-    @private
-  */
-  _register() {
-    assert('Attempted to register a view with an id already in use: ' + this.elementId, !this._viewRegistry[this.elementId]);
-    this._viewRegistry[this.elementId] = this;
-  },
-
-  /**
-    Removes the view from the view registry. This should be called when the
-    view is removed from DOM.
-
-    @method _unregister
-    @private
-  */
-  _unregister() {
-    delete this._viewRegistry[this.elementId];
-  },
-
-  registerObserver(root, path, target, observer) {
-    if (!observer && 'function' === typeof target) {
-      observer = target;
-      target = null;
-    }
-
-    if (!root || typeof root !== 'object') {
-      return;
-    }
-
-    var scheduledObserver = this._wrapAsScheduled(observer);
-
-    addObserver(root, path, target, scheduledObserver);
-
-    this.one('willClearRender', function() {
-      removeObserver(root, path, target, scheduledObserver);
-    });
-  },
-
-  _wrapAsScheduled(fn) {
-    var view = this;
-    var stateCheckedFn = function() {
-      view._currentState.invokeObserver(this, fn);
-    };
-    var scheduledFn = function() {
-      run.scheduleOnce('render', this, stateCheckedFn);
-    };
-    return scheduledFn;
   }
 });

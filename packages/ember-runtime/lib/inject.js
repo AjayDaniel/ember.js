@@ -1,5 +1,5 @@
-import { assert } from 'ember-metal/debug';
-import InjectedProperty from 'ember-metal/injected_property';
+import { InjectedProperty } from 'ember-metal';
+import { assert } from 'ember-debug';
 
 /**
   Namespace for injection helper methods.
@@ -14,7 +14,7 @@ export default function inject() {
 }
 
 // Dictionary of injection validations by type, added to by `createInjectionHelper`
-var typeValidators = {};
+const typeValidators = {};
 
 /**
   This method allows other Ember modules to register injection helpers for a
@@ -31,9 +31,7 @@ var typeValidators = {};
 export function createInjectionHelper(type, validator) {
   typeValidators[type] = validator;
 
-  inject[type] = function(name) {
-    return new InjectedProperty(type, name);
-  };
+  inject[type] = name => new InjectedProperty(type, name);
 }
 
 /**
@@ -47,20 +45,19 @@ export function createInjectionHelper(type, validator) {
   @param {Object} factory The factory object
 */
 export function validatePropertyInjections(factory) {
-  var proto = factory.proto();
-  var types = [];
-  var key, desc, validator, i, l;
+  let proto = factory.proto();
+  let types = [];
 
-  for (key in proto) {
-    desc = proto[key];
+  for (let key in proto) {
+    let desc = proto[key];
     if (desc instanceof InjectedProperty && types.indexOf(desc.type) === -1) {
       types.push(desc.type);
     }
   }
 
   if (types.length) {
-    for (i = 0, l = types.length; i < l; i++) {
-      validator = typeValidators[types[i]];
+    for (let i = 0; i < types.length; i++) {
+      let validator = typeValidators[types[i]];
 
       if (typeof validator === 'function') {
         validator(factory);

@@ -1,8 +1,7 @@
-import { A as emberA } from 'ember-runtime/system/native_array';
-import MutableArrayTests from 'ember-runtime/tests/suites/mutable_array';
+import { A as emberA } from '../../../system/native_array';
+import MutableArrayTests from '../../suites/mutable_array';
 
 MutableArrayTests.extend({
-
   name: 'Native Array',
 
   newObject(ary) {
@@ -16,5 +15,4 @@ MutableArrayTests.extend({
   toArray(obj) {
     return obj.slice(); // make a copy.
   }
-
 }).run();

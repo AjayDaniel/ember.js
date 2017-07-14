@@ -1,14 +1,14 @@
-import { warn } from 'ember-metal/debug';
-import jQuery from 'ember-views/system/jquery';
+import { warn } from 'ember-debug';
+import { jQuery } from 'ember-views';
 
-import environment from 'ember-metal/environment';
+import { environment } from 'ember-environment';
 
 /**
   @module ember
   @submodule ember-testing
 */
 
-var $ = jQuery;
+const $ = jQuery;
 
 /**
   This method creates a checkbox and triggers the click event to fire the
@@ -19,7 +19,9 @@ var $ = jQuery;
   @method testCheckboxClick
 */
 function testCheckboxClick(handler) {
-  $('<input type="checkbox">')
+  let input = document.createElement('input');
+  $(input)
+    .attr('type', 'checkbox')
     .css({ position: 'absolute', left: '-1000px', top: '-1000px' })
     .appendTo('body')
     .on('click', handler)
@@ -27,7 +29,7 @@ function testCheckboxClick(handler) {
     .remove();
 }
 
-if (environment.hasDOM) {
+if (environment.hasDOM && typeof $ === 'function') {
   $(function() {
     /*
       Determine whether a checkbox checked using jQuery's "click" method will have

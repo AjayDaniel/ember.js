@@ -1,16 +1,17 @@
-import { Suite } from 'ember-runtime/tests/suites/suite';
-import EmberObject from 'ember-runtime/system/object';
-import {guidFor, generateGuid} from 'ember-metal/utils';
-import {computed} from 'ember-metal/computed';
-import {get} from 'ember-metal/property_get';
-import { _addBeforeObserver } from 'ember-metal/observer';
+import { guidFor, generateGuid } from 'ember-utils';
+import { Suite } from './suite';
+import EmberObject from '../../system/object';
+import {
+  computed,
+  get,
+  _addBeforeObserver
+} from 'ember-metal';
 
-var ObserverClass = EmberObject.extend({
-
+const ObserverClass = EmberObject.extend({
   _keysBefore: null,
   _keys: null,
   _values: null,
-  _before : null,
+  _before: null,
   _after: null,
 
   isEnabled: true,
@@ -19,7 +20,6 @@ var ObserverClass = EmberObject.extend({
     this._super(...arguments);
     this.reset();
   },
-
 
   propertyWillChange(target, key) {
     if (this._keysBefore[key] === undefined) { this._keysBefore[key] = 0; }
@@ -52,9 +52,9 @@ var ObserverClass = EmberObject.extend({
 
 
   observeBefore(obj) {
-    var keys = Array.prototype.slice.call(arguments, 1);
-    var loc  = keys.length;
-    while (--loc>=0) {
+    let keys = Array.prototype.slice.call(arguments, 1);
+    let loc  = keys.length;
+    while (--loc >= 0) {
       _addBeforeObserver(obj, keys[loc], this, 'propertyWillChange');
     }
 
@@ -72,8 +72,8 @@ var ObserverClass = EmberObject.extend({
   */
   observe(obj) {
     if (obj.addObserver) {
-      var keys = Array.prototype.slice.call(arguments, 1);
-      var loc  = keys.length;
+      let keys = Array.prototype.slice.call(arguments, 1);
+      let loc  = keys.length;
 
       while (--loc >= 0) {
         obj.addObserver(keys[loc], this, 'propertyDidChange');
@@ -154,11 +154,9 @@ var ObserverClass = EmberObject.extend({
     equal(this._after, null, 'should only call once');
     this._after = Array.prototype.slice.call(arguments);
   }
-
 });
 
-
-var EnumerableTests = Suite.extend({
+const EnumerableTests = Suite.extend({
   /*
     __Required.__ You must implement this method to apply this mixin.
 
@@ -183,7 +181,7 @@ var EnumerableTests = Suite.extend({
     @returns {Array} array of strings
   */
   newFixture(cnt) {
-    var ret = [];
+    let ret = [];
     while (--cnt >= 0) {
       ret.push(generateGuid());
     }
@@ -201,8 +199,8 @@ var EnumerableTests = Suite.extend({
     @returns {Array} array of objects
   */
   newObjectsFixture(cnt) {
-    var ret = [];
-    var item;
+    let ret = [];
+    let item;
     while (--cnt >= 0) {
       item = {};
       guidFor(item);
@@ -257,7 +255,6 @@ var EnumerableTests = Suite.extend({
   */
   run() {},
 
-
   /*
     Creates a new observer object for testing.  You can add this object as an
     observer on an array and it will record results anytime it is invoked.
@@ -265,7 +262,7 @@ var EnumerableTests = Suite.extend({
     validate the results.
   */
   newObserver(obj) {
-    var ret = get(this, 'observerClass').create();
+    let ret = get(this, 'observerClass').create();
     if (arguments.length > 0) {
       ret.observeBefore.apply(ret, arguments);
     }
@@ -280,25 +277,27 @@ var EnumerableTests = Suite.extend({
   observerClass: ObserverClass
 });
 
-import anyTests         from 'ember-runtime/tests/suites/enumerable/any';
-import isAnyTests       from 'ember-runtime/tests/suites/enumerable/is_any';
-import compactTests     from 'ember-runtime/tests/suites/enumerable/compact';
-import containsTests    from 'ember-runtime/tests/suites/enumerable/contains';
-import everyTests       from 'ember-runtime/tests/suites/enumerable/every';
-import filterTests      from 'ember-runtime/tests/suites/enumerable/filter';
-import findTests        from 'ember-runtime/tests/suites/enumerable/find';
-import firstObjectTests from 'ember-runtime/tests/suites/enumerable/firstObject';
-import forEachTests     from 'ember-runtime/tests/suites/enumerable/forEach';
-import mapByTests       from 'ember-runtime/tests/suites/enumerable/mapBy';
-import invokeTests      from 'ember-runtime/tests/suites/enumerable/invoke';
-import lastObjectTests  from 'ember-runtime/tests/suites/enumerable/lastObject';
-import mapTests         from 'ember-runtime/tests/suites/enumerable/map';
-import reduceTests      from 'ember-runtime/tests/suites/enumerable/reduce';
-import rejectTests      from 'ember-runtime/tests/suites/enumerable/reject';
-import sortByTests      from 'ember-runtime/tests/suites/enumerable/sortBy';
-import toArrayTests     from 'ember-runtime/tests/suites/enumerable/toArray';
-import uniqTests        from 'ember-runtime/tests/suites/enumerable/uniq';
-import withoutTests     from 'ember-runtime/tests/suites/enumerable/without';
+import anyTests         from './enumerable/any';
+import isAnyTests       from './enumerable/is_any';
+import compactTests     from './enumerable/compact';
+import containsTests    from './enumerable/contains';
+import includesTests    from './enumerable/includes';
+import everyTests       from './enumerable/every';
+import filterTests      from './enumerable/filter';
+import findTests        from './enumerable/find';
+import firstObjectTests from './enumerable/firstObject';
+import forEachTests     from './enumerable/forEach';
+import mapByTests       from './enumerable/mapBy';
+import invokeTests      from './enumerable/invoke';
+import lastObjectTests  from './enumerable/lastObject';
+import mapTests         from './enumerable/map';
+import reduceTests      from './enumerable/reduce';
+import rejectTests      from './enumerable/reject';
+import sortByTests      from './enumerable/sortBy';
+import toArrayTests     from './enumerable/toArray';
+import uniqTests        from './enumerable/uniq';
+import uniqByTests      from './enumerable/uniqBy';
+import withoutTests     from './enumerable/without';
 
 EnumerableTests.importModuleTests(anyTests);
 EnumerableTests.importModuleTests(isAnyTests);
@@ -318,7 +317,12 @@ EnumerableTests.importModuleTests(rejectTests);
 EnumerableTests.importModuleTests(sortByTests);
 EnumerableTests.importModuleTests(toArrayTests);
 EnumerableTests.importModuleTests(uniqTests);
+
+EnumerableTests.importModuleTests(uniqByTests);
+
+EnumerableTests.importModuleTests(includesTests);
+
 EnumerableTests.importModuleTests(withoutTests);
 
 export default EnumerableTests;
-export {EnumerableTests, ObserverClass};
+export { EnumerableTests, ObserverClass };

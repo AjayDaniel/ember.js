@@ -1,6 +1,9 @@
-import Enumerable from 'ember-runtime/mixins/enumerable';
-import { Mixin } from 'ember-metal/mixin';
-import {beginPropertyChanges, endPropertyChanges} from 'ember-metal/property_events';
+import Enumerable from './enumerable';
+import {
+  Mixin,
+  beginPropertyChanges,
+  endPropertyChanges
+} from 'ember-metal';
 
 /**
 @module ember
@@ -76,7 +79,7 @@ export default Mixin.create(Enumerable, {
   */
   addObjects(objects) {
     beginPropertyChanges(this);
-    objects.forEach((obj) => this.addObject(obj));
+    objects.forEach(obj => this.addObject(obj));
     endPropertyChanges(this);
     return this;
   },
@@ -109,7 +112,7 @@ export default Mixin.create(Enumerable, {
   */
   removeObjects(objects) {
     beginPropertyChanges(this);
-    for (var i = objects.length - 1; i >= 0; i--) {
+    for (let i = objects.length - 1; i >= 0; i--) {
       this.removeObject(objects[i]);
     }
     endPropertyChanges(this);

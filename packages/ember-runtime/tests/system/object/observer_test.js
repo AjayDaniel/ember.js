@@ -1,22 +1,19 @@
-import { observer } from 'ember-metal/mixin';
-import run from 'ember-metal/run_loop';
-import { testBoth } from 'ember-metal/tests/props_helper';
-import EmberObject from 'ember-runtime/system/object';
+import { observer, run } from 'ember-metal';
+import { testBoth } from 'internal-test-helpers';
+import EmberObject from '../../../system/object';
 
 QUnit.module('EmberObject observer');
 
 testBoth('observer on class', function(get, set) {
-  var MyClass = EmberObject.extend({
-
+  let MyClass = EmberObject.extend({
     count: 0,
 
     foo: observer('bar', function() {
       set(this, 'count', get(this, 'count') + 1);
     })
-
   });
 
-  var obj = new MyClass();
+  let obj = new MyClass();
   equal(get(obj, 'count'), 0, 'should not invoke observer immediately');
 
   set(obj, 'bar', 'BAZ');
@@ -24,23 +21,21 @@ testBoth('observer on class', function(get, set) {
 });
 
 testBoth('observer on subclass', function(get, set) {
-  var MyClass = EmberObject.extend({
-
+  let MyClass = EmberObject.extend({
     count: 0,
 
     foo: observer('bar', function() {
       set(this, 'count', get(this, 'count') + 1);
     })
-
   });
 
-  var Subclass = MyClass.extend({
+  let Subclass = MyClass.extend({
     foo: observer('baz', function() {
       set(this, 'count', get(this, 'count') + 1);
     })
   });
 
-  var obj = new Subclass();
+  let obj = new Subclass();
   equal(get(obj, 'count'), 0, 'should not invoke observer immediately');
 
   set(obj, 'bar', 'BAZ');
@@ -51,7 +46,7 @@ testBoth('observer on subclass', function(get, set) {
 });
 
 testBoth('observer on instance', function(get, set) {
-  var obj = EmberObject.extend({
+  let obj = EmberObject.extend({
     foo: observer('bar', function() {
       set(this, 'count', get(this, 'count') + 1);
     })
@@ -66,7 +61,7 @@ testBoth('observer on instance', function(get, set) {
 });
 
 testBoth('observer on instance overriding class', function(get, set) {
-  var MyClass = EmberObject.extend({
+  let MyClass = EmberObject.extend({
     count: 0,
 
     foo: observer('bar', function() {
@@ -74,7 +69,7 @@ testBoth('observer on instance overriding class', function(get, set) {
     })
   });
 
-  var obj = MyClass.extend({
+  let obj = MyClass.extend({
     foo: observer('baz', function() { // <-- change property we observe
       set(this, 'count', get(this, 'count') + 1);
     })
@@ -90,7 +85,7 @@ testBoth('observer on instance overriding class', function(get, set) {
 });
 
 testBoth('observer should not fire after being destroyed', function(get, set) {
-  var obj = EmberObject.extend({
+  let obj = EmberObject.extend({
     count: 0,
     foo: observer('bar', function() {
       set(this, 'count', get(this, 'count') + 1);
@@ -99,7 +94,7 @@ testBoth('observer should not fire after being destroyed', function(get, set) {
 
   equal(get(obj, 'count'), 0, 'precond - should not invoke observer immediately');
 
-  run(function() { obj.destroy(); });
+  run(() => obj.destroy());
 
   expectAssertion(function() {
     set(obj, 'bar', 'BAZ');
@@ -113,7 +108,7 @@ testBoth('observer should not fire after being destroyed', function(get, set) {
 
 
 testBoth('chain observer on class', function(get, set) {
-  var MyClass = EmberObject.extend({
+  let MyClass = EmberObject.extend({
     count: 0,
 
     foo: observer('bar.baz', function() {
@@ -121,11 +116,11 @@ testBoth('chain observer on class', function(get, set) {
     })
   });
 
-  var obj1 = MyClass.create({
+  let obj1 = MyClass.create({
     bar: { baz: 'biff' }
   });
 
-  var obj2 = MyClass.create({
+  let obj2 = MyClass.create({
     bar: { baz: 'biff2' }
   });
 
@@ -143,7 +138,7 @@ testBoth('chain observer on class', function(get, set) {
 
 
 testBoth('chain observer on class', function(get, set) {
-  var MyClass = EmberObject.extend({
+  let MyClass = EmberObject.extend({
     count: 0,
 
     foo: observer('bar.baz', function() {
@@ -151,11 +146,11 @@ testBoth('chain observer on class', function(get, set) {
     })
   });
 
-  var obj1 = MyClass.extend().create({
+  let obj1 = MyClass.extend().create({
     bar: { baz: 'biff' }
   });
 
-  var obj2 = MyClass.extend({
+  let obj2 = MyClass.extend({
     foo: observer('bar2.baz', function() {
       set(this, 'count', get(this, 'count') + 1);
     })
@@ -181,16 +176,16 @@ testBoth('chain observer on class', function(get, set) {
 });
 
 testBoth('chain observer on class that has a reference to an uninitialized object will finish chains that reference it', function(get, set) {
-  var changed = false;
+  let changed = false;
 
-  var ChildClass = EmberObject.extend({
+  let ChildClass = EmberObject.extend({
     parent: null,
     parentOneTwoDidChange: observer('parent.one.two', function() {
       changed = true;
     })
   });
 
-  var ParentClass = EmberObject.extend({
+  let ParentClass = EmberObject.extend({
     one: {
       two: 'old'
     },
@@ -201,11 +196,15 @@ testBoth('chain observer on class that has a reference to an uninitialized objec
     }
   });
 
-  var parent = new ParentClass();
+  let parent = new ParentClass();
 
   equal(changed, false, 'precond');
 
   parent.set('one.two', 'new');
+
+  equal(changed, true, 'child should have been notified of change to path');
+
+  parent.set('one', { two: 'newer' });
 
   equal(changed, true, 'child should have been notified of change to path');
 });

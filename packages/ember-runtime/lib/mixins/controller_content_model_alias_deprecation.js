@@ -1,5 +1,5 @@
-import { deprecate } from 'ember-metal/debug';
-import { Mixin } from 'ember-metal/mixin';
+import { Mixin } from 'ember-metal';
+import { deprecate } from 'ember-debug';
 
 /*
   The ControllerContentModelAliasDeprecation mixin is used to provide a useful
@@ -33,7 +33,7 @@ export default Mixin.create({
     // there is another Mixin loaded first.
     this._super(...arguments);
 
-    var modelSpecified = !!props.model;
+    let modelSpecified = !!props.model;
 
     if (props.content && !modelSpecified) {
       props.model = props.content;

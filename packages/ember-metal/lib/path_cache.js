@@ -1,60 +1,29 @@
-import Cache from 'ember-metal/cache';
+import Cache from './cache';
 
-var IS_GLOBAL      = /^[A-Z$]/;
-var IS_GLOBAL_PATH = /^[A-Z$].*[\.]/;
-var HAS_THIS       = 'this.';
+const IS_GLOBAL_PATH = /^[A-Z$].*[\.]/;
 
-var isGlobalCache = new Cache(1000, (key) => {
-  return IS_GLOBAL.test(key);
+const isGlobalPathCache  = new Cache(1000, key => IS_GLOBAL_PATH.test(key));
+const firstDotIndexCache = new Cache(1000, key => key.indexOf('.'));
+
+const firstKeyCache = new Cache(1000, (path) => {
+  let index = firstDotIndexCache.get(path);
+  return index === -1 ? path : path.slice(0, index);
 });
 
-var isGlobalPathCache = new Cache(1000, (key) => {
-  return IS_GLOBAL_PATH.test(key);
+const tailPathCache = new Cache(1000, (path) => {
+  let index = firstDotIndexCache.get(path);
+  return index === -1 ? undefined : path.slice(index + 1);
 });
 
-var hasThisCache = new Cache(1000, (key) => {
-  return key.lastIndexOf(HAS_THIS, 0) === 0;
-});
-
-var firstDotIndexCache = new Cache(1000, (key) => {
-  return key.indexOf('.');
-});
-
-var firstKeyCache = new Cache(1000, (path) => {
-  var index = firstDotIndexCache.get(path);
-  if (index === -1) {
-    return path;
-  } else {
-    return path.slice(0, index);
-  }
-});
-
-var tailPathCache = new Cache(1000, (path) => {
-  var index = firstDotIndexCache.get(path);
-  if (index !== -1) {
-    return path.slice(index + 1);
-  }
-});
-
-export var caches = {
-  isGlobalCache:      isGlobalCache,
-  isGlobalPathCache:  isGlobalPathCache,
-  hasThisCache:       hasThisCache,
-  firstDotIndexCache: firstDotIndexCache,
-  firstKeyCache:      firstKeyCache,
-  tailPathCache:      tailPathCache
+export const caches = {
+  isGlobalPathCache,
+  firstDotIndexCache,
+  firstKeyCache,
+  tailPathCache
 };
-
-export function isGlobal(path) {
-  return isGlobalCache.get(path);
-}
 
 export function isGlobalPath(path) {
   return isGlobalPathCache.get(path);
-}
-
-export function hasThis(path) {
-  return hasThisCache.get(path);
 }
 
 export function isPath(path) {

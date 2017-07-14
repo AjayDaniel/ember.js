@@ -1,20 +1,15 @@
-import Ember from 'ember-metal/core';
+export { default as Test } from './test';
+export { default as Adapter } from './adapters/adapter';
+export { default as setupForTesting } from './setup_for_testing';
+export { default as QUnitAdapter } from './adapters/qunit';
 
-import 'ember-testing/initializers'; // to setup initializer
-import 'ember-testing/support';      // to handle various edge cases
-
-import setupForTesting from 'ember-testing/setup_for_testing';
-import Test from 'ember-testing/test';
-import Adapter from 'ember-testing/adapters/adapter';
-import QUnitAdapter from 'ember-testing/adapters/qunit';
-import 'ember-testing/helpers';      // adds helpers to helpers object in Test
+import './support';      // to handle various edge cases
+import './ext/application';
+import './ext/rsvp';     // setup RSVP + run loop integration
+import './helpers';      // adds helpers to helpers object in Test
+import './initializers'; // to setup initializer
 
 /**
   @module ember
   @submodule ember-testing
 */
-
-Ember.Test = Test;
-Ember.Test.Adapter = Adapter;
-Ember.Test.QUnitAdapter = QUnitAdapter;
-Ember.setupForTesting = setupForTesting;

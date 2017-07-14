@@ -1,64 +1,54 @@
-import Ember from 'ember-metal/core';
-import run from 'ember-metal/run_loop';
-import $ from 'ember-views/system/jquery';
-import Application from 'ember-application/system/application';
-import { subscribe, unsubscribe } from 'ember-metal/instrumentation';
-import { compile } from 'ember-template-compiler';
+import {
+  run,
+  instrumentationSubscribe as subscribe,
+  instrumentationReset as reset
+} from 'ember-metal';
+import { moduleFor, ApplicationTestCase } from 'internal-test-helpers';
 
-var App, $fixture;
+moduleFor('View Instrumentation', class extends ApplicationTestCase {
+  constructor() {
+    super();
+    this.addTemplate('application', `{{outlet}}`);
+    this.addTemplate('index', `<h1>Index</h1>`);
+    this.addTemplate('posts', `<h1>Posts</h1>`);
 
-function setupExample() {
-  // setup templates
-  Ember.TEMPLATES.application = compile('{{outlet}}');
-  Ember.TEMPLATES.index = compile('<h1>Node 1</h1>');
-  Ember.TEMPLATES.posts = compile('<h1>Node 1</h1>');
+    this.router.map(function() {
+      this.route('posts');
+    });
+  }
+  teardown() {
+    reset();
+    super.teardown();
+  }
 
-  App.Router.map(function() {
-    this.route('posts');
-  });
-}
+  ['@test Nodes without view instances are instrumented'](assert) {
+    let called = false;
 
-function handleURL(path) {
-  var router = App.__container__.lookup('router:main');
-  return run(router, 'handleURL', path);
-}
-
-QUnit.module('View Instrumentation', {
-  setup() {
-    run(function() {
-      App = Application.create({
-        rootElement: '#qunit-fixture'
-      });
-      App.deferReadiness();
-
-      App.Router.reopen({
-        location: 'none'
-      });
+    subscribe('render', {
+      before() {
+        called = true;
+      },
+      after() {}
     });
 
-    $fixture = $('#qunit-fixture');
-    setupExample();
-  },
+    return this.visit('/').then(() => {
+      assert.equal(this.textValue(),
+        'Index',
+        'It rendered the correct template'
+      );
 
-  teardown() {
-    run(App, 'destroy');
-    App = null;
-    Ember.TEMPLATES = {};
+      assert.ok(called, 'Instrumentation called on first render');
+      called = false;
+
+      return this.visit('/posts');
+    }).then(() => {
+      assert.equal(this.textValue(),
+      'Posts',
+      'It rendered the correct template'
+      );
+      assert.ok(called,
+        'Instrumentation called on transition to non-view backed route'
+      );
+    });
   }
-});
-
-QUnit.test('Nodes without view instances are instrumented', function(assert) {
-  var called = false;
-  var subscriber = subscribe('render', {
-    before() {
-      called = true;
-    },
-    after() {}
-  });
-  run(App, 'advanceReadiness');
-  assert.ok(called, 'Instrumentation called on first render');
-  called = false;
-  handleURL('/posts');
-  assert.ok(called, 'instrumentation called on transition to non-view backed route');
-  unsubscribe(subscriber);
 });

@@ -1,10 +1,10 @@
-import isNone from 'ember-metal/is_none';
+import { isNone } from '..';
 
 QUnit.module('Ember.isNone');
 
 QUnit.test('Ember.isNone', function() {
-  var string = 'string';
-  var fn = function() {};
+  let string = 'string';
+  let fn = function() {};
 
   equal(true, isNone(null), 'for null');
   equal(true, isNone(undefined), 'for undefined');

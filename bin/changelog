@@ -11,16 +11,14 @@
  * bin/changelog
  */
 
-var EOL       = require('os').EOL;
 var RSVP      = require('rsvp');
-var Promise   = RSVP.Promise;
 var GitHubApi = require('github');
 var execSync  = require('child_process').execSync;
 
-var github         = new GitHubApi({version: '3.0.0'});
+var github         = new GitHubApi({ version: '3.0.0' });
 var compareCommits = RSVP.denodeify(github.repos.compareCommits);
 var currentVersion = process.env.PRIOR_VERSION;
-var head = process.env.HEAD || 'master';
+var head = process.env.HEAD || execSync('git rev-parse HEAD', { encoding: 'UTF-8' });
 
 compareCommits({
   user: 'emberjs',
@@ -32,7 +30,7 @@ compareCommits({
 .then(console.log)
 .catch(function(err) {
   console.error(err);
-})
+});
 
 function getCommitMessage(commitInfo) {
   var message = commitInfo.commit.message;
@@ -44,7 +42,7 @@ function getCommitMessage(commitInfo) {
     try {
       // command from http://stackoverflow.com/questions/8475448/find-merge-commit-which-include-a-specific-commit
       message = execSync('commit=$((git rev-list ' + originalCommit + '..origin/master --ancestry-path | cat -n; git rev-list ' + originalCommit + '..origin/master --first-parent | cat -n) | sort -k2 | uniq -f1 -d | sort -n | tail -1 | cut -f2) && git show --format="%s\n\n%b" $commit', { encoding: 'utf8' });
-    } catch(e) { }
+    } catch (e) { }
   }
 
   return message;
@@ -65,7 +63,7 @@ function processPages(res) {
     if (match) {
       var numAndAuthor = match.slice(1, 3);
 
-      result.number =numAndAuthor[0];
+      result.number = numAndAuthor[0];
       result.title = message.split('\n\n')[1];
     } else {
       result.title = message.split('\n\n')[0];

@@ -3,20 +3,21 @@
 @submodule ember-routing
 */
 
-import Service from 'ember-runtime/system/service';
+import { assign } from 'ember-utils';
+import {
+  Service,
+  readOnly
+} from 'ember-runtime';
 
-import { get } from 'ember-metal/property_get';
-import { readOnly } from 'ember-metal/computed_macros';
-import { routeArgs } from 'ember-routing/utils';
-import assign from 'ember-metal/assign';
+import { get } from 'ember-metal';
+import { routeArgs } from '../utils';
 
 /**
   The Routing service is used by LinkComponent, and provides facilities for
   the component/view layer to interact with the router.
 
-  While still private, this service can eventually be opened up, and provides
-  the set of API needed for components to control routing without interacting
-  with router internals.
+  This is a private service for internal usage only. For public usage,
+  refer to the `Router` service.
 
   @private
   @class RoutingService
@@ -29,48 +30,46 @@ export default Service.extend({
   currentRouteName: readOnly('router.currentRouteName'),
   currentPath: readOnly('router.currentPath'),
 
-  availableRoutes() {
-    return Object.keys(get(this, 'router').router.recognizer.names);
-  },
-
   hasRoute(routeName) {
     return get(this, 'router').hasRoute(routeName);
   },
 
   transitionTo(routeName, models, queryParams, shouldReplace) {
-    var router = get(this, 'router');
+    let router = get(this, 'router');
 
-    var transition = router._doTransition(routeName, models, queryParams);
+    let transition = router._doTransition(routeName, models, queryParams);
 
     if (shouldReplace) {
       transition.method('replace');
     }
+
+    return transition;
   },
 
   normalizeQueryParams(routeName, models, queryParams) {
-    var router = get(this, 'router');
+    let router = get(this, 'router');
     router._prepareQueryParams(routeName, models, queryParams);
   },
 
   generateURL(routeName, models, queryParams) {
-    var router = get(this, 'router');
-    if (!router.router) { return; }
+    let router = get(this, 'router');
+    if (!router._routerMicrolib) { return; }
 
-    var visibleQueryParams = {};
+    let visibleQueryParams = {};
     assign(visibleQueryParams, queryParams);
 
     this.normalizeQueryParams(routeName, models, visibleQueryParams);
 
-    var args = routeArgs(routeName, models, visibleQueryParams);
-    return router.generate.apply(router, args);
+    let args = routeArgs(routeName, models, visibleQueryParams);
+    return router.generate(...args);
   },
 
   isActiveForRoute(contexts, queryParams, routeName, routerState, isCurrentWhenSpecified) {
-    var router = get(this, 'router');
+    let router = get(this, 'router');
 
-    var handlers = router.router.recognizer.handlersFor(routeName);
-    var leafName = handlers[handlers.length - 1].handler;
-    var maximumContexts = numberOfContextsAcceptedByHandler(routeName, handlers);
+    let handlers = router._routerMicrolib.recognizer.handlersFor(routeName);
+    let leafName = handlers[handlers.length - 1].handler;
+    let maximumContexts = numberOfContextsAcceptedByHandler(routeName, handlers);
 
     // NOTE: any ugliness in the calculation of activeness is largely
     // due to the fact that we support automatic normalizing of
@@ -91,9 +90,9 @@ export default Service.extend({
 });
 
 function numberOfContextsAcceptedByHandler(handler, handlerInfos) {
-  var req = 0;
-  for (var i = 0, l = handlerInfos.length; i < l; i++) {
-    req = req + handlerInfos[i].names.length;
+  let req = 0;
+  for (let i = 0; i < handlerInfos.length; i++) {
+    req += handlerInfos[i].names.length;
     if (handlerInfos[i].handler === handler) {
       break;
     }

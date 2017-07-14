@@ -1,18 +1,21 @@
-import assign from 'ember-metal/assign';
-import { get } from 'ember-metal/property_get';
+import { assign, getOwner } from 'ember-utils';
+import { get } from 'ember-metal';
+import { Error as EmberError } from 'ember-debug';
+
+const ALL_PERIODS_REGEX = /\./g;
 
 export function routeArgs(targetRouteName, models, queryParams) {
-  var args = [];
+  let args = [];
   if (typeof targetRouteName === 'string') {
-    args.push('' + targetRouteName);
+    args.push(`${targetRouteName}`);
   }
-  args.push.apply(args, models);
-  args.push({ queryParams: queryParams });
+  args.push(...models);
+  args.push({ queryParams });
   return args;
 }
 
 export function getActiveTargetName(router) {
-  var handlerInfos = router.activeTransition ?
+  let handlerInfos = router.activeTransition ?
                      router.activeTransition.state.handlerInfos :
                      router.state.handlerInfos;
   return handlerInfos[handlerInfos.length - 1].name;
@@ -25,13 +28,13 @@ export function stashParamNames(router, handlerInfos) {
   // keeps separate a handlerInfo's list of parameter names depending
   // on whether a URL transition or named transition is happening.
   // Hopefully we can remove this in the future.
-  var targetRouteName = handlerInfos[handlerInfos.length - 1].name;
-  var recogHandlers = router.router.recognizer.handlersFor(targetRouteName);
-  var dynamicParent = null;
+  let targetRouteName = handlerInfos[handlerInfos.length - 1].name;
+  let recogHandlers = router._routerMicrolib.recognizer.handlersFor(targetRouteName);
+  let dynamicParent = null;
 
-  for (var i = 0, len = handlerInfos.length; i < len; ++i) {
-    var handlerInfo = handlerInfos[i];
-    var names = recogHandlers[i].names;
+  for (let i = 0; i < handlerInfos.length; ++i) {
+    let handlerInfo = handlerInfos[i];
+    let names = recogHandlers[i].names;
 
     if (names.length) {
       dynamicParent = handlerInfo;
@@ -39,7 +42,7 @@ export function stashParamNames(router, handlerInfos) {
 
     handlerInfo._names = names;
 
-    var route = handlerInfo.handler;
+    let route = handlerInfo.handler;
     route._stashNames(handlerInfo, dynamicParent);
   }
 
@@ -47,7 +50,7 @@ export function stashParamNames(router, handlerInfos) {
 }
 
 function _calculateCacheValuePrefix(prefix, part) {
-  // calculates the dot seperated sections from prefix that are also
+  // calculates the dot separated sections from prefix that are also
   // at the start of part - which gives us the route name
 
   // given : prefix = site.article.comments, part = site.article.id
@@ -56,11 +59,11 @@ function _calculateCacheValuePrefix(prefix, part) {
   // given : prefix = site.article, part = site.article.id
   //      - returns: site.article. (use get(values[site.article], 'id') to get the dynamic part - used below)
 
-  var prefixParts = prefix.split('.');
-  var currPrefix = '';
+  let prefixParts = prefix.split('.');
+  let currPrefix = '';
 
-  for (var i = 0, len = prefixParts.length; i < len; i++) {
-    var currPart = prefixParts.slice(0, i + 1).join('.');
+  for (let i = 0; i < prefixParts.length; i++) {
+    let currPart = prefixParts.slice(0, i + 1).join('.');
     if (part.indexOf(currPart) !== 0) {
       break;
     }
@@ -73,26 +76,24 @@ function _calculateCacheValuePrefix(prefix, part) {
 /*
   Stolen from Controller
 */
-export function calculateCacheKey(prefix, _parts, values) {
-  var parts = _parts || [];
-  var suffixes = '';
-  for (var i = 0, len = parts.length; i < len; ++i) {
-    var part = parts[i];
-    var cacheValuePrefix = _calculateCacheValuePrefix(prefix, part);
-    var value;
+export function calculateCacheKey(prefix, parts = [], values) {
+  let suffixes = '';
+  for (let i = 0; i < parts.length; ++i) {
+    let part = parts[i];
+    let cacheValuePrefix = _calculateCacheValuePrefix(prefix, part);
+    let value;
     if (values) {
       if (cacheValuePrefix && cacheValuePrefix in values) {
-        var partRemovedPrefix = (part.indexOf(cacheValuePrefix) === 0) ? part.substr(cacheValuePrefix.length + 1) : part;
+        let partRemovedPrefix = (part.indexOf(cacheValuePrefix) === 0) ? part.substr(cacheValuePrefix.length + 1) : part;
         value = get(values[cacheValuePrefix], partRemovedPrefix);
       } else {
         value = get(values, part);
       }
     }
-    suffixes += '::' + part + ':' + value;
+    suffixes += `::${part}:${value}`;
   }
   return prefix + suffixes.replace(ALL_PERIODS_REGEX, '-');
 }
-var ALL_PERIODS_REGEX = /\./g;
 
 
 /*
@@ -128,13 +129,9 @@ var ALL_PERIODS_REGEX = /\./g;
   'Array of fully defined objects' style.
 */
 export function normalizeControllerQueryParams(queryParams) {
-  if (queryParams._qpMap) {
-    return queryParams._qpMap;
-  }
+  let qpMap = {};
 
-  var qpMap = queryParams._qpMap = {};
-
-  for (var i = 0, len = queryParams.length; i < len; ++i) {
+  for (let i = 0; i < queryParams.length; ++i) {
     accumulateQueryParamDescriptors(queryParams[i], qpMap);
   }
 
@@ -142,18 +139,18 @@ export function normalizeControllerQueryParams(queryParams) {
 }
 
 function accumulateQueryParamDescriptors(_desc, accum) {
-  var desc = _desc;
-  var tmp;
+  let desc = _desc;
+  let tmp;
   if (typeof desc === 'string') {
     tmp = {};
     tmp[desc] = { as: null };
     desc = tmp;
   }
 
-  for (var key in desc) {
+  for (let key in desc) {
     if (!desc.hasOwnProperty(key)) { return; }
 
-    var singleDesc = desc[key];
+    let singleDesc = desc[key];
     if (typeof singleDesc === 'string') {
       singleDesc = { as: singleDesc };
     }
@@ -163,4 +160,56 @@ function accumulateQueryParamDescriptors(_desc, accum) {
 
     accum[key] = tmp;
   }
+}
+
+/*
+  Check if a routeName resembles a url instead
+
+  @private
+*/
+function resemblesURL(str) {
+  return typeof str === 'string' && (str === '' || str.charAt(0) === '/');
+}
+
+/*
+  Returns an arguments array where the route name arg is prefixed based on the mount point
+
+  @private
+*/
+export function prefixRouteNameArg(route, args) {
+  let routeName = args[0];
+  let owner = getOwner(route);
+  let prefix = owner.mountPoint;
+
+  // only alter the routeName if it's actually referencing a route.
+  if (owner.routable && typeof routeName === 'string') {
+    if (resemblesURL(routeName)) {
+      throw new EmberError('Programmatic transitions by URL cannot be used within an Engine. Please use the route name instead.');
+    } else {
+      routeName = `${prefix}.${routeName}`;
+      args[0] = routeName;
+    }
+  }
+
+  return args;
+}
+
+export function shallowEqual(a, b) {
+  let k;
+  let aCount = 0;
+  let bCount = 0;
+  for (k in a) {
+    if (a.hasOwnProperty(k)) {
+      if (a[k] !== b[k]) { return false; }
+      aCount++;
+    }
+  }
+
+  for (k in b) {
+    if (b.hasOwnProperty(k)) {
+      bCount++;
+    }
+  }
+
+  return aCount === bCount;
 }

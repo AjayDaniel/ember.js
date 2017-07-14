@@ -1,4 +1,4 @@
-import { get } from 'ember-metal/property_get';
+import { get } from './property_get';
 
 /**
   To get multiple properties at once, call `Ember.getProperties`
@@ -24,15 +24,15 @@ import { get } from 'ember-metal/property_get';
   @public
 */
 export default function getProperties(obj) {
-  var ret = {};
-  var propertyNames = arguments;
-  var i = 1;
+  let ret = {};
+  let propertyNames = arguments;
+  let i = 1;
 
   if (arguments.length === 2 && Array.isArray(arguments[1])) {
     i = 0;
     propertyNames = arguments[1];
   }
-  for (var len = propertyNames.length; i < len; i++) {
+  for (; i < propertyNames.length; i++) {
     ret[propertyNames[i]] = get(obj, propertyNames[i]);
   }
   return ret;

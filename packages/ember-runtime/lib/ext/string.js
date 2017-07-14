@@ -3,7 +3,7 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.EXTEND_PROTOTYPES
+import { ENV } from 'ember-environment';
 import {
   fmt,
   w,
@@ -14,11 +14,11 @@ import {
   underscore,
   capitalize,
   classify
-} from 'ember-runtime/system/string';
+} from '../system/string';
 
-var StringPrototype = String.prototype;
+const StringPrototype = String.prototype;
 
-if (Ember.EXTEND_PROTOTYPES === true || Ember.EXTEND_PROTOTYPES.String) {
+if (ENV.EXTEND_PROTOTYPES.String) {
   /**
     See [Ember.String.fmt](/api/classes/Ember.String.html#method_fmt).
 

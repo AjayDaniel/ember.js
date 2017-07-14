@@ -1,12 +1,13 @@
-import { runDestroy } from 'ember-runtime/tests/utils';
-import Service from 'ember-runtime/system/service';
-import EmberObject from 'ember-runtime/system/object';
-import EmberRoute from 'ember-routing/system/route';
-import inject from 'ember-runtime/inject';
-import buildOwner from 'container/tests/test-helpers/build-owner';
-import { setOwner } from 'container/owner';
+import { setOwner } from 'ember-utils';
+import { runDestroy, buildOwner } from 'internal-test-helpers';
+import {
+  Service,
+  Object as EmberObject,
+  inject
+} from 'ember-runtime';
+import EmberRoute from '../../system/route';
 
-var route, routeOne, routeTwo, lookupHash;
+let route, routeOne, routeTwo, lookupHash;
 
 function setup() {
   route = EmberRoute.create();
@@ -24,8 +25,8 @@ QUnit.module('Ember.Route', {
 QUnit.test('default store utilizes the container to acquire the model factory', function() {
   expect(4);
 
-  var Post = EmberObject.extend();
-  var post = {};
+  let Post = EmberObject.extend();
+  let post = {};
 
   Post.reopenClass({
     find(id) {
@@ -33,17 +34,25 @@ QUnit.test('default store utilizes the container to acquire the model factory', 
     }
   });
 
-  setOwner(route, buildOwner({
-    hasRegistration() {
-      return true;
-    },
+  let ownerOptions = {
+    ownerOptions: {
+      hasRegistration() {
+        return true;
+      },
+      factoryFor(fullName) {
+        equal(fullName, 'model:post', 'correct factory was looked up');
 
-    _lookupFactory(fullName) {
-      equal(fullName, 'model:post', 'correct factory was looked up');
-
-      return Post;
+        return {
+          class: Post,
+          create() {
+            return Post.create();
+          }
+        };
+      }
     }
-  }));
+  };
+
+  setOwner(route, buildOwner(ownerOptions));
 
   route.set('_qp', null);
 
@@ -57,11 +66,11 @@ QUnit.test('\'store\' can be injected by data persistence frameworks', function(
 
   let owner = buildOwner();
 
-  var post = {
+  let post = {
     id: 1
   };
 
-  var Store = EmberObject.extend({
+  let Store = EmberObject.extend({
     find(type, value) {
       ok(true, 'injected model was called');
       equal(type, 'post', 'correct type was called');
@@ -86,7 +95,7 @@ QUnit.test('assert if \'store.find\' method is not found', function() {
   runDestroy(route);
 
   let owner = buildOwner();
-  var Post = EmberObject.extend();
+  let Post = EmberObject.extend();
 
   owner.register('route:index', EmberRoute);
   owner.register('model:post', Post);
@@ -109,7 +118,7 @@ QUnit.test('asserts if model class is not found', function() {
 
   expectAssertion(function() {
     route.model({ post_id: 1 });
-  }, 'You used the dynamic segment post_id in your route undefined, but undefined.Post did not exist and you did not override your route\'s `model` hook.');
+  }, /You used the dynamic segment post_id in your route undefined, but <Ember.Object:ember\d+>.Post did not exist and you did not override your route\'s `model` hook./);
 });
 
 QUnit.test('\'store\' does not need to be injected', function() {
@@ -149,7 +158,7 @@ QUnit.test('modelFor doesn\'t require the router', function() {
 
 QUnit.test('.send just calls an action if the router is absent', function() {
   expect(7);
-  var route = EmberRoute.extend({
+  let route = EmberRoute.extend({
     actions: {
       returnsTrue(foo, bar) {
         equal(foo, 1);
@@ -172,7 +181,7 @@ QUnit.test('.send just calls an action if the router is absent', function() {
 
 QUnit.test('.send just calls an action if the routers internal router property is absent', function() {
   expect(7);
-  var route = EmberRoute.extend({
+  let route = EmberRoute.extend({
     router: { },
     actions: {
       returnsTrue(foo, bar) {
@@ -197,7 +206,7 @@ QUnit.test('.send just calls an action if the routers internal router property i
 QUnit.test('can access `actions` hash via `_actions` [DEPRECATED]', function() {
   expect(2);
 
-  var route = EmberRoute.extend({
+  let route = EmberRoute.extend({
     actions: {
       foo: function() {
         ok(true, 'called foo action');
@@ -249,19 +258,19 @@ QUnit.module('Ember.Route serialize', {
 });
 
 QUnit.test('returns the models properties if params does not include *_id', function() {
-  var model = { id: 2, firstName: 'Ned', lastName: 'Ryerson' };
+  let model = { id: 2, firstName: 'Ned', lastName: 'Ryerson' };
 
   deepEqual(route.serialize(model, ['firstName', 'lastName']), { firstName: 'Ned', lastName: 'Ryerson' }, 'serialized correctly');
 });
 
 QUnit.test('returns model.id if params include *_id', function() {
-  var model = { id: 2 };
+  let model = { id: 2 };
 
   deepEqual(route.serialize(model, ['post_id']), { post_id: 2 }, 'serialized correctly');
 });
 
 QUnit.test('returns checks for existence of model.post_id before trying model.id', function() {
-  var model = { post_id: 3 };
+  let model = { post_id: 3 };
 
   deepEqual(route.serialize(model, ['post_id']), { post_id: 3 }, 'serialized correctly');
 });
@@ -272,7 +281,7 @@ QUnit.test('returns undefined if model is not set', function() {
 
 QUnit.module('Ember.Route interaction', {
   setup() {
-    var owner = {
+    let owner = {
       lookup(fullName) {
         return lookupHash[fullName];
       }
@@ -296,8 +305,20 @@ QUnit.module('Ember.Route interaction', {
   }
 });
 
+
+QUnit.test('route._qp does not crash if the controller has no QP, or setProperties', function() {
+  lookupHash['controller:test'] = {};
+
+  routeOne.controllerName = 'test';
+  let qp = routeOne.get('_qp');
+
+  deepEqual(qp.map, {}, 'map should be empty');
+  deepEqual(qp.propertyNames, [], 'property names should be empty');
+  deepEqual(qp.qps, [], 'qps is should be empty');
+});
+
 QUnit.test('controllerFor uses route\'s controllerName if specified', function() {
-  var testController = {};
+  let testController = {};
   lookupHash['controller:test'] = testController;
 
   routeOne.controllerName = 'test';
@@ -316,8 +337,188 @@ QUnit.test('services can be injected into routes', function() {
 
   owner.register('service:auth', Service.extend());
 
-  var appRoute = owner.lookup('route:application');
-  var authService = owner.lookup('service:auth');
+  let appRoute = owner.lookup('route:application');
+  let authService = owner.lookup('service:auth');
 
   equal(authService, appRoute.get('authService'), 'service.auth is injected');
+});
+
+QUnit.module('Ember.Route with engines');
+
+QUnit.test('paramsFor considers an engine\'s mountPoint', function(assert) {
+  expect(2);
+
+  let router = {
+    _deserializeQueryParams() {},
+    _routerMicrolib: {
+      state: {
+        handlerInfos: [
+          { name: 'posts' }
+        ],
+        params: {
+          'foo.bar': { a: 'b' },
+          'foo.bar.posts': { c: 'd' }
+        }
+      }
+    }
+  };
+
+  let engineInstance = buildOwner({
+    ownerOptions: {
+      routable: true,
+
+      mountPoint: 'foo.bar',
+
+      lookup(name) {
+        if (name === 'route:posts') {
+          return postsRoute;
+        } else if (name === 'route:application') {
+          return applicationRoute;
+        }
+      }
+    }
+  });
+
+  let applicationRoute = EmberRoute.create({ router, routeName: 'application', fullRouteName: 'foo.bar' });
+  let postsRoute = EmberRoute.create({ router, routeName: 'posts', fullRouteName: 'foo.bar.posts' });
+  let route = EmberRoute.create({ router });
+
+  setOwner(applicationRoute, engineInstance);
+  setOwner(postsRoute, engineInstance);
+  setOwner(route, engineInstance);
+
+  assert.deepEqual(route.paramsFor('application'), { a: 'b' }, 'params match for root `application` route in engine');
+  assert.deepEqual(route.paramsFor('posts'), { c: 'd' }, 'params match for `posts` route in engine');
+});
+
+QUnit.test('modelFor considers an engine\'s mountPoint', function() {
+  expect(2);
+
+  let applicationModel = { id: '1' };
+  let postsModel = { id: '2' };
+
+  let router = {
+    _routerMicrolib: {
+      activeTransition: {
+        resolvedModels: {
+          'foo.bar': applicationModel,
+          'foo.bar.posts': postsModel
+        }
+      }
+    }
+  };
+
+  let engineInstance = buildOwner({
+    ownerOptions: {
+      routable: true,
+
+      mountPoint: 'foo.bar',
+
+      lookup(name) {
+        if (name === 'route:posts') {
+          return postsRoute;
+        } else if (name === 'route:application') {
+          return applicationRoute;
+        }
+      }
+    }
+  });
+
+  let applicationRoute = EmberRoute.create({ router, routeName: 'application' });
+  let postsRoute = EmberRoute.create({ router, routeName: 'posts' });
+  let route = EmberRoute.create({ router });
+
+  setOwner(applicationRoute, engineInstance);
+  setOwner(postsRoute, engineInstance);
+  setOwner(route, engineInstance);
+
+  strictEqual(route.modelFor('application'), applicationModel);
+  strictEqual(route.modelFor('posts'), postsModel);
+});
+
+QUnit.test('transitionTo considers an engine\'s mountPoint', function() {
+  expect(4);
+
+  let router = {
+    transitionTo(route) {
+      return route;
+    }
+  };
+
+  let engineInstance = buildOwner({
+    ownerOptions: {
+      routable: true,
+      mountPoint: 'foo.bar'
+    }
+  });
+
+  let route = EmberRoute.create({ router });
+  setOwner(route, engineInstance);
+
+  strictEqual(route.transitionTo('application'), 'foo.bar.application', 'properly prefixes application route');
+  strictEqual(route.transitionTo('posts'), 'foo.bar.posts', 'properly prefixes child routes');
+  throws(() => route.transitionTo('/posts'), 'throws when trying to use a url');
+
+  let queryParams = {};
+  strictEqual(route.transitionTo(queryParams), queryParams, 'passes query param only transitions through');
+});
+
+QUnit.test('intermediateTransitionTo considers an engine\'s mountPoint', function() {
+  expect(4);
+
+  let lastRoute;
+  let router = {
+    intermediateTransitionTo(route) {
+      lastRoute = route;
+    }
+  };
+
+  let engineInstance = buildOwner({
+    ownerOptions: {
+      routable: true,
+      mountPoint: 'foo.bar'
+    }
+  });
+
+  let route = EmberRoute.create({ router });
+  setOwner(route, engineInstance);
+
+  route.intermediateTransitionTo('application');
+  strictEqual(lastRoute, 'foo.bar.application', 'properly prefixes application route');
+
+  route.intermediateTransitionTo('posts');
+  strictEqual(lastRoute, 'foo.bar.posts', 'properly prefixes child routes');
+
+  throws(() => route.intermediateTransitionTo('/posts'), 'throws when trying to use a url');
+
+  let queryParams = {};
+  route.intermediateTransitionTo(queryParams);
+  strictEqual(lastRoute, queryParams, 'passes query param only transitions through');
+});
+
+QUnit.test('replaceWith considers an engine\'s mountPoint', function() {
+  expect(4);
+
+  let router = {
+    replaceWith(route) {
+      return route;
+    }
+  };
+
+  let engineInstance = buildOwner({
+    ownerOptions: {
+      routable: true,
+      mountPoint: 'foo.bar'
+    }
+  });
+
+  let route = EmberRoute.create({ router });
+  setOwner(route, engineInstance);
+
+  strictEqual(route.replaceWith('application'), 'foo.bar.application', 'properly prefixes application route');
+  strictEqual(route.replaceWith('posts'), 'foo.bar.posts', 'properly prefixes child routes');
+  throws(() => route.replaceWith('/posts'), 'throws when trying to use a url');
+
+  let queryParams = {};
+  strictEqual(route.replaceWith(queryParams), queryParams, 'passes query param only transitions through');
 });

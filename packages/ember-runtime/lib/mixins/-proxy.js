@@ -3,34 +3,64 @@
 @submodule ember-runtime
 */
 
-import { assert, deprecate } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import { meta } from 'ember-metal/meta';
+import { CachedTag, DirtyableTag, UpdatableTag } from '@glimmer/reference';
 import {
+  get,
+  set,
+  meta,
+  on,
   addObserver,
   removeObserver,
   _addBeforeObserver,
-  _removeBeforeObserver
-} from 'ember-metal/observer';
-import {
+  _removeBeforeObserver,
   propertyWillChange,
-  propertyDidChange
-} from 'ember-metal/property_events';
-import { computed } from 'ember-metal/computed';
-import { defineProperty } from 'ember-metal/properties';
-import { Mixin, observer } from 'ember-metal/mixin';
+  propertyDidChange,
+  defineProperty,
+  Mixin,
+  observer,
+  tagFor,
+} from 'ember-metal';
+import {
+  assert,
+  deprecate
+} from 'ember-debug';
+import { bool } from '../computed/computed_macros';
 
 function contentPropertyWillChange(content, contentKey) {
-  var key = contentKey.slice(8); // remove "content."
+  let key = contentKey.slice(8); // remove "content."
   if (key in this) { return; }  // if shadowed in proxy
   propertyWillChange(this, key);
 }
 
 function contentPropertyDidChange(content, contentKey) {
-  var key = contentKey.slice(8); // remove "content."
+  let key = contentKey.slice(8); // remove "content."
   if (key in this) { return; } // if shadowed in proxy
   propertyDidChange(this, key);
+}
+
+class ProxyTag extends CachedTag {
+  constructor(proxy) {
+    super();
+
+    let content = get(proxy, 'content');
+
+    this.proxy = proxy;
+    this.proxyWrapperTag = new DirtyableTag();
+    this.proxyContentTag = new UpdatableTag(tagFor(content));
+  }
+
+  compute() {
+    return Math.max(this.proxyWrapperTag.value(), this.proxyContentTag.value());
+  }
+
+  dirty() {
+    this.proxyWrapperTag.dirty();
+  }
+
+  contentDidChange() {
+    let content = get(this.proxy, 'content');
+    this.proxyContentTag.update(tagFor(content));
+  }
 }
 
 /**
@@ -51,28 +81,30 @@ export default Mixin.create({
     @private
   */
   content: null,
-  _contentDidChange: observer('content', function() {
-    assert('Can\'t set Proxy\'s content to itself', get(this, 'content') !== this);
-  }),
 
-  isTruthy: computed.bool('content'),
+  init() {
+    this._super(...arguments);
+    let m = meta(this);
+    m.setProxy();
+    m.writableTag((source)=> new ProxyTag(source));
+  },
 
-  _debugContainerKey: null,
+  isTruthy: bool('content'),
 
   willWatchProperty(key) {
-    var contentKey = 'content.' + key;
+    let contentKey = `content.${key}`;
     _addBeforeObserver(this, contentKey, null, contentPropertyWillChange);
     addObserver(this, contentKey, null, contentPropertyDidChange);
   },
 
   didUnwatchProperty(key) {
-    var contentKey = 'content.' + key;
+    let contentKey = `content.${key}`;
     _removeBeforeObserver(this, contentKey, null, contentPropertyWillChange);
     removeObserver(this, contentKey, null, contentPropertyDidChange);
   },
 
   unknownProperty(key) {
-    var content = get(this, 'content');
+    let content = get(this, 'content');
     if (content) {
       deprecate(
         `You attempted to access \`${key}\` from \`${this}\`, but object proxying is deprecated. Please use \`model.${key}\` instead.`,
@@ -84,7 +116,8 @@ export default Mixin.create({
   },
 
   setUnknownProperty(key, value) {
-    var m = meta(this);
+    let m = meta(this);
+
     if (m.proto === this) {
       // if marked as prototype then just defineProperty
       // rather than delegate
@@ -92,7 +125,7 @@ export default Mixin.create({
       return value;
     }
 
-    var content = get(this, 'content');
+    let content = get(this, 'content');
     assert(`Cannot delegate set('${key}', ${value}) to the \'content\' property of object proxy ${this}: its 'content' is undefined.`, content);
 
     deprecate(
@@ -100,7 +133,7 @@ export default Mixin.create({
       !this.isController,
       { id: 'ember-runtime.controller-proxy', until: '3.0.0' }
     );
+
     return set(content, key, value);
   }
-
 });

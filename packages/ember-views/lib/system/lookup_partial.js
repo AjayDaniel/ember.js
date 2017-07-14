@@ -1,34 +1,46 @@
-import { assert } from 'ember-metal/debug';
-import EmberError from 'ember-metal/error';
+import { assert, Error as EmberError } from 'ember-debug';
 
-export default function lookupPartial(env, templateName) {
+function parseUnderscoredName(templateName) {
+  let nameParts = templateName.split('/');
+  let lastPart = nameParts[nameParts.length - 1];
+
+  nameParts[nameParts.length - 1] = `_${lastPart}`;
+
+  return nameParts.join('/');
+}
+
+export default function lookupPartial(templateName, owner) {
   if (templateName == null) { return; }
 
-  var nameParts = templateName.split('/');
-  var lastPart = nameParts[nameParts.length - 1];
-
-  nameParts[nameParts.length - 1] = '_' + lastPart;
-
-  var underscoredName = nameParts.join('/');
-  var template = templateFor(env, underscoredName, templateName);
+  let template = templateFor(owner, parseUnderscoredName(templateName), templateName);
 
   assert(
-    'Unable to find partial with name "' + templateName + '"',
+    `Unable to find partial with name "${templateName}"`,
     !!template
   );
 
   return template;
 }
 
-function templateFor(env, underscored, name) {
-  if (!name) { return; }
-  assert('templateNames are not allowed to contain periods: ' + name, name.indexOf('.') === -1);
-
-  if (!env.owner) {
+export function hasPartial(name, owner) {
+  if (!owner) {
     throw new EmberError('Container was not found when looking up a views template. ' +
                'This is most likely due to manually instantiating an Ember.View. ' +
                'See: http://git.io/EKPpnA');
   }
 
-  return env.owner.lookup('template:' + underscored) || env.owner.lookup('template:' + name);
+  return owner.hasRegistration(`template:${parseUnderscoredName(name)}`) || owner.hasRegistration(`template:${name}`);
+}
+
+function templateFor(owner, underscored, name) {
+  if (!name) { return; }
+  assert(`templateNames are not allowed to contain periods: ${name}`, name.indexOf('.') === -1);
+
+  if (!owner) {
+    throw new EmberError('Container was not found when looking up a views template. ' +
+               'This is most likely due to manually instantiating an Ember.View. ' +
+               'See: http://git.io/EKPpnA');
+  }
+
+  return owner.lookup(`template:${underscored}`) || owner.lookup(`template:${name}`);
 }

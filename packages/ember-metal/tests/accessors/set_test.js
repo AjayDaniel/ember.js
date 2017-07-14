@@ -1,10 +1,17 @@
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
+import {
+  get,
+  set,
+  setHasViews
+} from '../..';
 
-QUnit.module('set');
+QUnit.module('set', {
+  teardown() {
+    setHasViews(() => false);
+  }
+});
 
 QUnit.test('should set arbitrary properties on an object', function() {
-  var obj = {
+  let obj = {
     string: 'string',
     number: 23,
     boolTrue: true,
@@ -13,11 +20,11 @@ QUnit.test('should set arbitrary properties on an object', function() {
     undefinedValue: undefined
   };
 
-  var newObj = {
+  let newObj = {
     undefinedValue: 'emberjs'
   };
 
-  for (var key in obj) {
+  for (let key in obj) {
     if (!obj.hasOwnProperty(key)) {
       continue;
     }
@@ -28,7 +35,7 @@ QUnit.test('should set arbitrary properties on an object', function() {
 });
 
 QUnit.test('should call setUnknownProperty if defined and value is undefined', function() {
-  var obj = {
+  let obj = {
     count: 0,
 
     unknownProperty(key, value) {
@@ -48,40 +55,33 @@ QUnit.test('should call setUnknownProperty if defined and value is undefined', f
 });
 
 QUnit.test('warn on attempts to call set with undefined as object', function() {
-  expectAssertion(function() {
-    set(undefined, 'aProperty', 'BAM');
-  }, /Cannot call set with 'aProperty' on an undefined object./);
+  expectAssertion(() => set(undefined, 'aProperty', 'BAM'), /Cannot call set with 'aProperty' on an undefined object./);
 });
 
 QUnit.test('warn on attempts to call set with null as object', function() {
-  expectAssertion(function() {
-    set(null, 'aProperty', 'BAM');
-  }, /Cannot call set with 'aProperty' on an undefined object./);
+  expectAssertion(() => set(null, 'aProperty', 'BAM'), /Cannot call set with 'aProperty' on an undefined object./);
 });
 
 QUnit.test('warn on attempts to use set with an unsupported property path', function() {
-  var obj = {};
-  expectAssertion(function() {
-    set(obj, null, 42);
-  }, /The key provided to set must be a string, you passed null/);
-  expectAssertion(function() {
-    set(obj, NaN, 42);
-  }, /The key provided to set must be a string, you passed NaN/);
-  expectAssertion(function() {
-    set(obj, undefined, 42);
-  }, /The key provided to set must be a string, you passed undefined/);
-  expectAssertion(function() {
-    set(obj, false, 42);
-  }, /The key provided to set must be a string, you passed false/);
-  expectAssertion(function() {
-    set(obj, 42, 42);
-  }, /The key provided to set must be a string, you passed 42/);
+  let obj = {};
+  expectAssertion(() => set(obj, null, 42),      /The key provided to set must be a string, you passed null/);
+  expectAssertion(() => set(obj, NaN, 42),       /The key provided to set must be a string, you passed NaN/);
+  expectAssertion(() => set(obj, undefined, 42), /The key provided to set must be a string, you passed undefined/);
+  expectAssertion(() => set(obj, false, 42),     /The key provided to set must be a string, you passed false/);
+  expectAssertion(() => set(obj, 42, 42),        /The key provided to set must be a string, you passed 42/);
 });
 
 QUnit.test('warn on attempts of calling set on a destroyed object', function() {
   let obj = { isDestroyed: true };
 
-  expectAssertion(function() {
-    set(obj, 'favoriteFood', 'hot dogs');
-  }, 'calling set on destroyed object: [object Object].favoriteFood = hot dogs');
+  expectAssertion(() => set(obj, 'favoriteFood', 'hot dogs'), 'calling set on destroyed object: [object Object].favoriteFood = hot dogs');
+});
+
+QUnit.test('does not trigger auto-run assertion for objects that have not been tagged', function(assert) {
+  setHasViews(() => true);
+  let obj = {};
+
+  set(obj, 'foo', 'bar');
+
+  assert.equal(obj.foo, 'bar');
 });

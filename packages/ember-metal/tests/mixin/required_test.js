@@ -1,15 +1,15 @@
 import {
   mixin,
   Mixin,
-  required
-} from 'ember-metal/mixin';
-import { get } from 'ember-metal/property_get';
+  required,
+  get
+} from '../..';
 
-var PartialMixin, FinalMixin, obj;
+let PartialMixin, FinalMixin, obj;
 
 QUnit.module('Module.required', {
   setup() {
-    expectDeprecation(function() {
+    expectDeprecation(() => {
       PartialMixin = Mixin.create({
         foo: required(),
         bar: 'BAR'

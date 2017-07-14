@@ -1,11 +1,11 @@
-import { get } from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import run from 'ember-metal/run_loop';
-import { guidFor } from 'ember-metal/utils';
+import {
+  get,
+  set,
+  run
+} from 'ember-metal';
 
-import EmberObject from 'ember-runtime/system/object';
-import EmberLocation from 'ember-routing/location/api';
-import jQuery from 'ember-views/system/jquery';
+import { Object as EmberObject } from 'ember-runtime';
+import EmberLocation from './api';
 
 /**
 @module ember
@@ -27,6 +27,8 @@ export default EmberObject.extend({
 
   init() {
     set(this, 'location', get(this, '_location') || window.location);
+
+    this._hashchangeHandler = undefined;
   },
 
   /**
@@ -51,10 +53,10 @@ export default EmberObject.extend({
     @method getURL
   */
   getURL() {
-    var originalPath = this.getHash().substr(1);
-    var outPath = originalPath;
+    let originalPath = this.getHash().substr(1);
+    let outPath = originalPath;
 
-    if (outPath.charAt(0) !== '/') {
+    if (outPath[0] !== '/') {
       outPath = '/';
 
       // Only add the # if the path isn't empty.
@@ -106,18 +108,18 @@ export default EmberObject.extend({
     @param callback {Function}
   */
   onUpdateURL(callback) {
-    var guid = guidFor(this);
+    this._removeEventListener();
 
-    jQuery(window).on(`hashchange.ember-location-${guid}`, () => {
-      run(() => {
-        var path = this.getURL();
-        if (get(this, 'lastSetURL') === path) { return; }
+    this._hashchangeHandler = run.bind(this, function() {
+      let path = this.getURL();
+      if (get(this, 'lastSetURL') === path) { return; }
 
-        set(this, 'lastSetURL', null);
+      set(this, 'lastSetURL', null);
 
-        callback(path);
-      });
+      callback(path);
     });
+
+    window.addEventListener('hashchange', this._hashchangeHandler);
   },
 
   /**
@@ -142,8 +144,12 @@ export default EmberObject.extend({
     @method willDestroy
   */
   willDestroy() {
-    var guid = guidFor(this);
+    this._removeEventListener();
+  },
 
-    jQuery(window).off(`hashchange.ember-location-${guid}`);
+  _removeEventListener() {
+    if (this._hashchangeHandler) {
+      window.removeEventListener('hashchange', this._hashchangeHandler);
+    }
   }
 });

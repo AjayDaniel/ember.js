@@ -1,14 +1,18 @@
-import { computed } from 'ember-metal/computed';
-import MutableArrayTests from 'ember-runtime/tests/suites/mutable_array';
-import MutableArray from 'ember-runtime/mixins/mutable_array';
-import EmberObject from 'ember-runtime/system/object';
-import { A as emberA } from 'ember-runtime/system/native_array';
+import { computed } from 'ember-metal';
+import MutableArrayTests from '../suites/mutable_array';
+import MutableArray from '../../mixins/mutable_array';
+import EmberObject from '../../system/object';
+import { A as emberA } from '../../system/native_array';
+import {
+  arrayContentDidChange,
+  arrayContentWillChange
+} from '../../mixins/array';
 
 /*
   Implement a basic fake mutable array.  This validates that any non-native
   enumerable can impl this API.
 */
-var TestMutableArray = EmberObject.extend(MutableArray, {
+const TestMutableArray = EmberObject.extend(MutableArray, {
 
   _content: null,
 
@@ -17,16 +21,16 @@ var TestMutableArray = EmberObject.extend(MutableArray, {
   },
 
   replace(idx, amt, objects) {
-    var args = objects ? objects.slice() : [];
-    var removeAmt = amt;
-    var addAmt    = args.length;
+    let args = objects ? objects.slice() : [];
+    let removeAmt = amt;
+    let addAmt    = args.length;
 
-    this.arrayContentWillChange(idx, removeAmt, addAmt);
+    arrayContentWillChange(this, idx, removeAmt, addAmt);
 
     args.unshift(amt);
     args.unshift(idx);
     this._content.splice.apply(this._content, args);
-    this.arrayContentDidChange(idx, removeAmt, addAmt);
+    arrayContentDidChange(this, idx, removeAmt, addAmt);
     return this;
   },
 

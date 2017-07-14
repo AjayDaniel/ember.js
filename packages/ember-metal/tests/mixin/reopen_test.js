@@ -1,14 +1,16 @@
-import run from 'ember-metal/run_loop';
-import get from 'ember-metal/property_get';
-import EmberObject from 'ember-runtime/system/object';
-import Mixin from 'ember-metal/mixin';
+import { Object as EmberObject } from 'ember-runtime';
+import {
+  run,
+  get,
+  Mixin
+} from '../..'
 
 QUnit.module('Ember.Mixin#reopen');
 
 QUnit.test('using reopen() to add more properties to a simple', function() {
-  var MixinA = Mixin.create({ foo: 'FOO', baz: 'BAZ' });
+  let MixinA = Mixin.create({ foo: 'FOO', baz: 'BAZ' });
   MixinA.reopen({ bar: 'BAR', foo: 'FOO2' });
-  var obj = {};
+  let obj = {};
   MixinA.apply(obj);
 
   equal(get(obj, 'foo'), 'FOO2', 'mixin() should override');
@@ -17,7 +19,7 @@ QUnit.test('using reopen() to add more properties to a simple', function() {
 });
 
 QUnit.test('using reopen() and calling _super where there is not a super function does not cause infinite recursion', function() {
-  var Taco = EmberObject.extend({
+  let Taco = EmberObject.extend({
     createBreakfast() {
       // There is no original createBreakfast function.
       // Calling the wrapped _super function here
@@ -33,13 +35,13 @@ QUnit.test('using reopen() and calling _super where there is not a super functio
     }
   });
 
-  var taco = Taco.create();
+  let taco = Taco.create();
 
-  var result;
-  run(function() {
+  let result;
+  run(() => {
     try {
       result = taco.createBreakfast();
-    } catch(e) {
+    } catch (e) {
       result = 'Your breakfast was interrupted by an infinite stack error.';
     }
   });

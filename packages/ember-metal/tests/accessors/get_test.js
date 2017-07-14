@@ -1,18 +1,16 @@
-import { testBoth } from 'ember-metal/tests/props_helper';
+import { testBoth } from 'internal-test-helpers';
 import {
   get,
-  getWithDefault
-} from 'ember-metal/property_get';
-import {
+  getWithDefault,
   Mixin,
-  observer
-} from 'ember-metal/mixin';
-import { addObserver } from 'ember-metal/observer';
+  observer,
+  addObserver
+} from '../..';
 
 QUnit.module('Ember.get');
 
 QUnit.test('should get arbitrary properties on an object', function() {
-  var obj = {
+  let obj = {
     string: 'string',
     number: 23,
     boolTrue: true,
@@ -20,7 +18,7 @@ QUnit.test('should get arbitrary properties on an object', function() {
     nullValue: null
   };
 
-  for (var key in obj) {
+  for (let key in obj) {
     if (!obj.hasOwnProperty(key)) {
       continue;
     }
@@ -29,8 +27,8 @@ QUnit.test('should get arbitrary properties on an object', function() {
 });
 
 QUnit.test('should not access a property more than once', function() {
-  var count = 0;
-  var obj = {
+  let count = 0;
+  let obj = {
     get id() { return ++count; }
   };
 
@@ -40,7 +38,7 @@ QUnit.test('should not access a property more than once', function() {
 });
 
 testBoth('should call unknownProperty on watched values if the value is undefined', function(get, set) {
-  var obj = {
+  let obj = {
     count: 0,
     unknownProperty(key) {
       equal(key, 'foo', 'should pass key');
@@ -49,7 +47,7 @@ testBoth('should call unknownProperty on watched values if the value is undefine
     }
   };
 
-  var count = 0;
+  let count = 0;
   addObserver(obj, 'foo', function() {
     count++;
   });
@@ -57,19 +55,19 @@ testBoth('should call unknownProperty on watched values if the value is undefine
   equal(get(obj, 'foo'), 'FOO', 'should return value from unknown');
 });
 
-QUnit.test('warn on attemps to call get with no arguments', function() {
+QUnit.test('warn on attempts to call get with no arguments', function() {
   expectAssertion(function() {
     get('aProperty');
   }, /Get must be called with two arguments;/i);
 });
 
-QUnit.test('warn on attemps to call get with only one argument', function() {
+QUnit.test('warn on attempts to call get with only one argument', function() {
   expectAssertion(function() {
     get('aProperty');
   }, /Get must be called with two arguments;/i);
 });
 
-QUnit.test('warn on attemps to call get with more then two arguments', function() {
+QUnit.test('warn on attempts to call get with more then two arguments', function() {
   expectAssertion(function() {
     get({}, 'aProperty', true);
   }, /Get must be called with two arguments;/i);
@@ -100,22 +98,13 @@ QUnit.test('warn on attempts to get a property path of null', function() {
 });
 
 QUnit.test('warn on attempts to use get with an unsupported property path', function() {
-  var obj = {};
-  expectAssertion(function() {
-    get(obj, null);
-  }, /The key provided to get must be a string, you passed null/);
-  expectAssertion(function() {
-    get(obj, NaN);
-  }, /The key provided to get must be a string, you passed NaN/);
-  expectAssertion(function() {
-    get(obj, undefined);
-  }, /The key provided to get must be a string, you passed undefined/);
-  expectAssertion(function() {
-    get(obj, false);
-  }, /The key provided to get must be a string, you passed false/);
-  expectAssertion(function() {
-    get(obj, 42);
-  }, /The key provided to get must be a string, you passed 42/);
+  let obj = {};
+  expectAssertion(() => get(obj, null),      /The key provided to get must be a string, you passed null/);
+  expectAssertion(() => get(obj, NaN),       /The key provided to get must be a string, you passed NaN/);
+  expectAssertion(() => get(obj, undefined), /The key provided to get must be a string, you passed undefined/);
+  expectAssertion(() => get(obj, false),     /The key provided to get must be a string, you passed false/);
+  expectAssertion(() => get(obj, 42),        /The key provided to get must be a string, you passed 42/);
+  expectAssertion(() => get(obj, ''), /Cannot call `Ember.get` with an empty string/);
 });
 
 // ..........................................................
@@ -123,15 +112,13 @@ QUnit.test('warn on attempts to use get with an unsupported property path', func
 //
 
 QUnit.test('(regression) watched properties on unmodified inherited objects should still return their original value', function() {
-  var MyMixin = Mixin.create({
+  let MyMixin = Mixin.create({
     someProperty: 'foo',
-    propertyDidChange: observer('someProperty', function() {
-      // NOTHING TO DO
-    })
+    propertyDidChange: observer('someProperty', () => {})
   });
 
-  var baseObject = MyMixin.apply({});
-  var theRealObject = Object.create(baseObject);
+  let baseObject = MyMixin.apply({});
+  let theRealObject = Object.create(baseObject);
 
   equal(get(theRealObject, 'someProperty'), 'foo', 'should return the set value, not false');
 });
@@ -139,7 +126,7 @@ QUnit.test('(regression) watched properties on unmodified inherited objects shou
 QUnit.module('Ember.getWithDefault');
 
 QUnit.test('should get arbitrary properties on an object', function() {
-  var obj = {
+  let obj = {
     string: 'string',
     number: 23,
     boolTrue: true,
@@ -147,7 +134,7 @@ QUnit.test('should get arbitrary properties on an object', function() {
     nullValue: null
   };
 
-  for (var key in obj) {
+  for (let key in obj) {
     if (!obj.hasOwnProperty(key)) {
       continue;
     }
@@ -163,7 +150,7 @@ QUnit.test('should get arbitrary properties on an object', function() {
 });
 
 QUnit.test('should call unknownProperty if defined and value is undefined', function() {
-  var obj = {
+  let obj = {
     count: 0,
     unknownProperty(key) {
       equal(key, 'foo', 'should pass key');
@@ -177,7 +164,7 @@ QUnit.test('should call unknownProperty if defined and value is undefined', func
 });
 
 testBoth('if unknownProperty is present, it is called', function(get, set) {
-  var obj = {
+  let obj = {
     count: 0,
     unknownProperty(key) {
       if (key === 'foo') {
@@ -188,10 +175,8 @@ testBoth('if unknownProperty is present, it is called', function(get, set) {
     }
   };
 
-  var count = 0;
-  addObserver(obj, 'foo', function() {
-    count++;
-  });
+  let count = 0;
+  addObserver(obj, 'foo', () => count++);
 
   equal(getWithDefault(obj, 'foo', 'fail'), 'FOO', 'should return value from unknownProperty');
   equal(getWithDefault(obj, 'bar', 'default'), 'default', 'should convert undefined from unknownProperty into default');
@@ -202,15 +187,13 @@ testBoth('if unknownProperty is present, it is called', function(get, set) {
 //
 
 QUnit.test('(regression) watched properties on unmodified inherited objects should still return their original value', function() {
-  var MyMixin = Mixin.create({
+  let MyMixin = Mixin.create({
     someProperty: 'foo',
-    propertyDidChange: observer('someProperty', function() {
-      // NOTHING TO DO
-    })
+    propertyDidChange: observer('someProperty', () => { /* nothing to do */})
   });
 
-  var baseObject = MyMixin.apply({});
-  var theRealObject = Object.create(baseObject);
+  let baseObject = MyMixin.apply({});
+  let theRealObject = Object.create(baseObject);
 
   equal(getWithDefault(theRealObject, 'someProperty', 'fail'), 'foo', 'should return the set value, not false');
 });

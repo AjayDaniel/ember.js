@@ -3,29 +3,25 @@
 @submodule ember-runtime
 */
 
-import { assert } from 'ember-metal/debug';
 import {
   get,
-  getWithDefault
-} from 'ember-metal/property_get';
-import { set } from 'ember-metal/property_set';
-import getProperties from 'ember-metal/get_properties';
-import setProperties from 'ember-metal/set_properties';
-import { Mixin } from 'ember-metal/mixin';
-import { hasListeners } from 'ember-metal/events';
-import {
+  getWithDefault,
+  set,
+  getProperties,
+  setProperties,
+  Mixin,
+  hasListeners,
   beginPropertyChanges,
   propertyWillChange,
   propertyDidChange,
-  endPropertyChanges
-} from 'ember-metal/property_events';
-import {
+  endPropertyChanges,
   addObserver,
   removeObserver,
-  observersFor
-} from 'ember-metal/observer';
-import { cacheFor } from 'ember-metal/computed';
-import isNone from 'ember-metal/is_none';
+  observersFor,
+  cacheFor,
+  isNone
+} from 'ember-metal';
+import { assert } from 'ember-debug';
 
 /**
   ## Overview
@@ -114,9 +110,9 @@ export default Mixin.create({
     declared at the end, such as:
 
     ```javascript
-    fullName: function() {
+    fullName: Ember.computed('firstName', 'lastName', function() {
       return this.get('firstName') + ' ' + this.get('lastName');
-    }.property('firstName', 'lastName')
+    })
     ```
 
     When you call `get` on a computed property, the function will be
@@ -162,13 +158,17 @@ export default Mixin.create({
     @public
   */
   getProperties(...args) {
-    return getProperties.apply(null, [this].concat(args));
+    return getProperties(...[this].concat(args));
   },
 
   /**
     Sets the provided key or path to the value.
 
-    This method is generally very similar to calling `object[key] = value` or
+    ```javascript
+    record.set("key", value);
+    ```
+
+    This method is generally very similar to calling `object["key"] = value` or
     `object.key = value`, except that it provides support for computed
     properties, the `setUnknownProperty()` method and property observers.
 
@@ -340,42 +340,37 @@ export default Mixin.create({
     value is set, regardless of whether it has actually changed. Your
     observer should be prepared to handle that.
 
-    You can also pass an optional context parameter to this method. The
-    context will be passed to your observer method whenever it is triggered.
-    Note that if you add the same target/method pair on a key multiple times
-    with different context parameters, your observer will only be called once
-    with the last context you passed.
-
     ### Observer Methods
 
-    Observer methods you pass should generally have the following signature if
-    you do not pass a `context` parameter:
+    Observer methods have the following signature:
 
     ```javascript
-    fooDidChange: function(sender, key, value, rev) { };
+    export default Ember.Component.extend({
+      init() {
+        this._super(...arguments);
+        this.addObserver('foo', this, 'fooDidChange');
+      },
+
+      fooDidChange(sender, key, value, rev) {
+        // your code
+      }
+    });
     ```
 
-    The sender is the object that changed. The key is the property that
-    changes. The value property is currently reserved and unused. The rev
+    The `sender` is the object that changed. The `key` is the property that
+    changes. The `value` property is currently reserved and unused. The `rev`
     is the last property revision of the object when it changed, which you can
     use to detect if the key value has really changed or not.
 
-    If you pass a `context` parameter, the context will be passed before the
-    revision like so:
-
-    ```javascript
-    fooDidChange: function(sender, key, value, context, rev) { };
-    ```
-
-    Usually you will not need the value, context or revision parameters at
+    Usually you will not need the value or revision parameters at
     the end. In this case, it is common to write observer methods that take
     only a sender and key value as parameters or, if you aren't interested in
     any of these values, to write an observer that has no parameters at all.
 
     @method addObserver
-    @param {String} key The key to observer
+    @param {String} key The key to observe
     @param {Object} target The target object to invoke
-    @param {String|Function} method The method to invoke.
+    @param {String|Function} method The method to invoke
     @public
   */
   addObserver(key, target, method) {
@@ -388,9 +383,9 @@ export default Mixin.create({
     target will no longer receive notifications.
 
     @method removeObserver
-    @param {String} key The key to observer
+    @param {String} key The key to observe
     @param {Object} target The target object to invoke
-    @param {String|Function} method The method to invoke.
+    @param {String|Function} method The method to invoke
     @public
   */
   removeObserver(key, target, method) {
@@ -409,7 +404,7 @@ export default Mixin.create({
     @private
   */
   hasObserverFor(key) {
-    return hasListeners(this, key + ':change');
+    return hasListeners(this, `${key}:change`);
   },
 
   /**

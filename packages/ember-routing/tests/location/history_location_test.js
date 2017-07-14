@@ -1,8 +1,9 @@
-import { set } from 'ember-metal/property_set';
-import run from 'ember-metal/run_loop';
-import HistoryLocation from 'ember-routing/location/history_location';
-
-var FakeHistory, HistoryTestLocation, location;
+import {
+  set,
+  run
+} from 'ember-metal';
+import HistoryLocation from '../../location/history_location';
+let FakeHistory, HistoryTestLocation, location;
 
 function createLocation(options) {
   if (!options) { options = {}; }
@@ -12,11 +13,11 @@ function createLocation(options) {
 function mockBrowserLocation(path) {
   // This is a neat trick to auto-magically extract the hostname from any
   // url by letting the browser do the work ;)
-  var tmp = document.createElement('a');
+  let tmp = document.createElement('a');
   tmp.href = path;
 
-  var protocol = (!tmp.protocol || tmp.protocol === ':') ? 'http' : tmp.protocol;
-  var pathname = (tmp.pathname.match(/^\//)) ? tmp.pathname : '/' + tmp.pathname;
+  let protocol = (!tmp.protocol || tmp.protocol === ':') ? 'http' : tmp.protocol;
+  let pathname = (tmp.pathname.match(/^\//)) ? tmp.pathname : '/' + tmp.pathname;
 
   return {
     hash: tmp.hash,
@@ -51,7 +52,7 @@ QUnit.module('Ember.HistoryLocation', {
   },
 
   teardown() {
-    run(function() {
+    run(() => {
       if (location) { location.destroy(); }
     });
   }
@@ -112,7 +113,7 @@ QUnit.test('base URL is removed when retrieving the current pathname', function(
 });
 
 QUnit.test('base URL is preserved when moving around', function() {
-  expect(1);
+  expect(2);
 
   HistoryTestLocation.reopen({
     init() {
@@ -128,10 +129,11 @@ QUnit.test('base URL is preserved when moving around', function() {
   location.setURL('/one/two');
 
   equal(location._historyState.path, '/base/one/two');
+  ok(location._historyState.uuid);
 });
 
 QUnit.test('setURL continues to set even with a null state (iframes may set this)', function() {
-  expect(1);
+  expect(2);
 
   createLocation();
   location.initState();
@@ -140,10 +142,11 @@ QUnit.test('setURL continues to set even with a null state (iframes may set this
   location.setURL('/three/four');
 
   equal(location._historyState.path, '/three/four');
+  ok(location._historyState.uuid);
 });
 
 QUnit.test('replaceURL continues to set even with a null state (iframes may set this)', function() {
-  expect(1);
+  expect(2);
 
   createLocation();
   location.initState();
@@ -152,6 +155,7 @@ QUnit.test('replaceURL continues to set even with a null state (iframes may set 
   location.replaceURL('/three/four');
 
   equal(location._historyState.path, '/three/four');
+  ok(location._historyState.uuid);
 });
 
 QUnit.test('HistoryLocation.getURL() returns the current url, excluding both rootURL and baseURL', function() {
@@ -170,6 +174,72 @@ QUnit.test('HistoryLocation.getURL() returns the current url, excluding both roo
   createLocation();
 
   equal(location.getURL(), '/foo/bar');
+});
+
+QUnit.test('HistoryLocation.getURL() returns the current url, does not remove rootURL if its not at start of url', function() {
+  expect(1);
+
+  HistoryTestLocation.reopen({
+    init() {
+      this._super(...arguments);
+
+      set(this, 'location', mockBrowserLocation('/foo/bar/baz'));
+      set(this, 'rootURL', '/bar/');
+    }
+  });
+
+  createLocation();
+
+  equal(location.getURL(), '/foo/bar/baz');
+});
+
+QUnit.test('HistoryLocation.getURL() will not remove the rootURL when only a partial match', function() {
+  expect(1);
+
+  HistoryTestLocation.reopen({
+    init() {
+      this._super(...arguments);
+      set(this, 'location', mockBrowserLocation('/bars/baz'));
+      set(this, 'rootURL', '/bar/');
+    }
+  });
+
+  createLocation();
+
+  equal(location.getURL(), '/bars/baz');
+});
+
+QUnit.test('HistoryLocation.getURL() returns the current url, does not remove baseURL if its not at start of url', function() {
+  expect(1);
+
+  HistoryTestLocation.reopen({
+    init() {
+      this._super(...arguments);
+
+      set(this, 'location', mockBrowserLocation('/foo/bar/baz'));
+      set(this, 'baseURL', '/bar/');
+    }
+  });
+
+  createLocation();
+
+  equal(location.getURL(), '/foo/bar/baz');
+});
+
+QUnit.test('HistoryLocation.getURL() will not remove the baseURL when only a partial match', function() {
+  expect(1);
+
+  HistoryTestLocation.reopen({
+    init() {
+      this._super(...arguments);
+      set(this, 'location', mockBrowserLocation('/bars/baz'));
+      set(this, 'baseURL', '/bar/');
+    }
+  });
+
+  createLocation();
+
+  equal(location.getURL(), '/bars/baz');
 });
 
 QUnit.test('HistoryLocation.getURL() includes location.search', function() {
@@ -215,4 +285,22 @@ QUnit.test('HistoryLocation.getURL() includes location.hash and location.search'
   createLocation();
 
   equal(location.getURL(), '/foo/bar?time=morphin#pink-power-ranger');
+});
+
+
+QUnit.test('HistoryLocation.getURL() drops duplicate slashes', function() {
+  expect(1);
+
+  HistoryTestLocation.reopen({
+    init() {
+      this._super(...arguments);
+      let location = mockBrowserLocation('//');
+      location.pathname = '//'; // mockBrowserLocation does not allow for `//`, so force it
+      set(this, 'location', location);
+    }
+  });
+
+  createLocation();
+
+  equal(location.getURL(), '/');
 });

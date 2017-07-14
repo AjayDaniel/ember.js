@@ -1,20 +1,11 @@
-'no use strict';
-// Remove "use strict"; from transpiled module until
-// https://bugs.webkit.org/show_bug.cgi?id=138038 is fixed
-
 /**
 @module ember
 @submodule ember-metal
 */
-import { assert } from 'ember-metal/debug';
-import {
-  apply,
-  applyStr
-} from 'ember-metal/utils';
-import { meta as metaFor, peekMeta } from 'ember-metal/meta';
-
-import { ONCE, SUSPENDED } from 'ember-metal/meta_listeners';
-
+import { applyStr } from 'ember-utils';
+import { deprecate, assert } from 'ember-debug';
+import { meta as metaFor, peekMeta } from './meta';
+import { ONCE, SUSPENDED } from './meta_listeners';
 
 /*
   The event system uses a series of nested hashes to store listeners on an
@@ -34,41 +25,6 @@ import { ONCE, SUSPENDED } from 'ember-metal/meta_listeners';
 
 */
 
-function indexOf(array, target, method) {
-  var index = -1;
-  // hashes are added to the end of the event array
-  // so it makes sense to start searching at the end
-  // of the array and search in reverse
-  for (var i = array.length - 3 ; i >=0; i -= 3) {
-    if (target === array[i] && method === array[i + 1]) {
-      index = i;
-      break;
-    }
-  }
-  return index;
-}
-
-export function accumulateListeners(obj, eventName, otherActions) {
-  var meta = peekMeta(obj);
-  if (!meta) { return; }
-  var actions = meta.matchingListeners(eventName);
-  var newActions = [];
-
-  for (var i = actions.length - 3; i >= 0; i -= 3) {
-    var target = actions[i];
-    var method = actions[i + 1];
-    var flags = actions[i + 2];
-    var actionIndex = indexOf(otherActions, target, method);
-
-    if (actionIndex === -1) {
-      otherActions.push(target, method, flags);
-      newActions.push(target, method, flags);
-    }
-  }
-
-  return newActions;
-}
-
 /**
   Add an event listener
 
@@ -84,12 +40,22 @@ export function accumulateListeners(obj, eventName, otherActions) {
 export function addListener(obj, eventName, target, method, once) {
   assert('You must pass at least an object and event name to Ember.addListener', !!obj && !!eventName);
 
+  deprecate(
+    `didInitAttrs called in ${obj && obj.toString && obj.toString()}.`,
+    eventName !== 'didInitAttrs',
+    {
+      id: 'ember-views.did-init-attrs',
+      until: '3.0.0',
+      url: 'https://emberjs.com/deprecations/v2.x#toc_ember-component-didinitattrs'
+    }
+  );
+
   if (!method && 'function' === typeof target) {
     method = target;
     target = null;
   }
 
-  var flags = 0;
+  let flags = 0;
   if (once) {
     flags |= ONCE;
   }
@@ -122,11 +88,9 @@ export function removeListener(obj, eventName, target, method) {
     target = null;
   }
 
-  metaFor(obj).removeFromListeners(eventName, target, method, (...args) => {
-    if ('function' === typeof obj.didRemoveListener) {
-      obj.didRemoveListener(...args);
-    }
-  });
+  let func = ('function' === typeof obj.didRemoveListener) ?
+    obj.didRemoveListener.bind(obj) : ()=> {};
+  metaFor(obj).removeFromListeners(eventName, target, method, func);
 }
 
 /**
@@ -181,7 +145,8 @@ export function suspendListeners(obj, eventNames, target, method, callback) {
   @param obj
 */
 export function watchedEvents(obj) {
-  return metaFor(obj).watchedEvents();
+  let meta = peekMeta(obj);
+  return meta && meta.watchedEvents() || [];
 }
 
 /**
@@ -196,21 +161,24 @@ export function watchedEvents(obj) {
   @param {String} eventName
   @param {Array} params Optional parameters for each listener.
   @param {Array} actions Optional array of actions (listeners).
+  @param {Meta}  meta Optional meta to lookup listeners
   @return true
   @public
 */
-export function sendEvent(obj, eventName, params, actions) {
-  if (!actions) {
-    var meta = peekMeta(obj);
-    actions = meta && meta.matchingListeners(eventName);
+export function sendEvent(obj, eventName, params, actions, _meta) {
+  if (actions === undefined) {
+    let meta = _meta || peekMeta(obj);
+    actions = typeof meta === 'object' &&
+                     meta !== null &&
+                     meta.matchingListeners(eventName);
   }
 
-  if (!actions || actions.length === 0) { return; }
+  if (actions === undefined || actions.length === 0) { return false; }
 
-  for (var i = actions.length - 3; i >= 0; i -= 3) { // looping in reverse for once listeners
-    var target = actions[i];
-    var method = actions[i + 1];
-    var flags = actions[i + 2];
+  for (let i = actions.length - 3; i >= 0; i -= 3) { // looping in reverse for once listeners
+    let target = actions[i];
+    let method = actions[i + 1];
+    let flags = actions[i + 2];
 
     if (!method) { continue; }
     if (flags & SUSPENDED) { continue; }
@@ -224,7 +192,7 @@ export function sendEvent(obj, eventName, params, actions) {
       }
     } else {
       if (params) {
-        apply(target, method, params);
+        method.apply(target, params);
       } else {
         method.call(target);
       }
@@ -241,9 +209,10 @@ export function sendEvent(obj, eventName, params, actions) {
   @param {String} eventName
 */
 export function hasListeners(obj, eventName) {
-  var meta = peekMeta(obj);
+  let meta = peekMeta(obj);
   if (!meta) { return false; }
-  return meta.matchingListeners(eventName).length > 0;
+  let matched = meta.matchingListeners(eventName);
+  return matched !== undefined && matched.length > 0;
 }
 
 /**
@@ -254,15 +223,15 @@ export function hasListeners(obj, eventName) {
   @param {String} eventName
 */
 export function listenersFor(obj, eventName) {
-  var ret = [];
-  var meta = peekMeta(obj);
-  var actions = meta && meta.matchingListeners(eventName);
+  let ret = [];
+  let meta = peekMeta(obj);
+  let actions = meta && meta.matchingListeners(eventName);
 
   if (!actions) { return ret; }
 
-  for (var i = 0, l = actions.length; i < l; i += 3) {
-    var target = actions[i];
-    var method = actions[i + 1];
+  for (let i = 0; i < actions.length; i += 3) {
+    let target = actions[i];
+    let method = actions[i + 1];
     ret.push([target, method]);
   }
 
@@ -275,13 +244,13 @@ export function listenersFor(obj, eventName) {
 
 
   ``` javascript
-  var Job = Ember.Object.extend({
+  let Job = Ember.Object.extend({
     logCompleted: Ember.on('completed', function() {
       console.log('Job completed!');
     })
   });
 
-  var job = Job.create();
+  let job = Job.create();
 
   Ember.sendEvent(job, 'completed'); // Logs 'Job completed!'
  ```
@@ -294,8 +263,8 @@ export function listenersFor(obj, eventName) {
   @public
 */
 export function on(...args) {
-  var func = args.pop();
-  var events = args;
+  let func = args.pop();
+  let events = args;
   func.__ember_listens__ = events;
   return func;
 }

@@ -1,16 +1,18 @@
-import Ember from 'ember-metal/core';
-import EmberObject from 'ember-runtime/system/object';
-import { testBoth } from 'ember-metal/tests/props_helper';
+import { ENV } from 'ember-environment';
+import { Mixin, mixin } from 'ember-metal';
+import { testBoth } from 'internal-test-helpers';
+import EmberObject from '../../system/object';
+import Evented from '../../mixins/evented';
 
 QUnit.module('Function.prototype.observes() helper');
 
 testBoth('global observer helper takes multiple params', function(get, set) {
-  if (Ember.EXTEND_PROTOTYPES === false) {
+  if (!ENV.EXTEND_PROTOTYPES.Function) {
     ok('undefined' === typeof Function.prototype.observes, 'Function.prototype helper disabled');
     return;
   }
 
-  var MyMixin = Ember.Mixin.create({
+  let MyMixin = Mixin.create({
 
     count: 0,
 
@@ -20,7 +22,7 @@ testBoth('global observer helper takes multiple params', function(get, set) {
 
   });
 
-  var obj = Ember.mixin({}, MyMixin);
+  let obj = mixin({}, MyMixin);
   equal(get(obj, 'count'), 0, 'should not invoke observer immediately');
 
   set(obj, 'bar', 'BAZ');
@@ -31,12 +33,12 @@ testBoth('global observer helper takes multiple params', function(get, set) {
 QUnit.module('Function.prototype.on() helper');
 
 testBoth('sets up an event listener, and can trigger the function on multiple events', function(get, set) {
-  if (Ember.EXTEND_PROTOTYPES === false) {
+  if (!ENV.EXTEND_PROTOTYPES.Function) {
     ok('undefined' === typeof Function.prototype.on, 'Function.prototype helper disabled');
     return;
   }
 
-  var MyMixin = Ember.Mixin.create({
+  let MyMixin = Mixin.create({
 
     count: 0,
 
@@ -46,7 +48,7 @@ testBoth('sets up an event listener, and can trigger the function on multiple ev
 
   });
 
-  var obj = Ember.mixin({}, Ember.Evented, MyMixin);
+  let obj = mixin({}, Evented, MyMixin);
   equal(get(obj, 'count'), 0, 'should not invoke listener immediately');
 
   obj.trigger('bar');
@@ -55,12 +57,12 @@ testBoth('sets up an event listener, and can trigger the function on multiple ev
 });
 
 testBoth('can be chained with observes', function(get, set) {
-  if (Ember.EXTEND_PROTOTYPES === false) {
+  if (!ENV.EXTEND_PROTOTYPES.Function) {
     ok('Function.prototype helper disabled');
     return;
   }
 
-  var MyMixin = Ember.Mixin.create({
+  let MyMixin = Mixin.create({
 
     count: 0,
     bay: 'bay',
@@ -69,7 +71,7 @@ testBoth('can be chained with observes', function(get, set) {
     }.observes('bay').on('bar')
   });
 
-  var obj = Ember.mixin({}, Ember.Evented, MyMixin);
+  let obj = mixin({}, Evented, MyMixin);
   equal(get(obj, 'count'), 0, 'should not invoke listener immediately');
 
   set(obj, 'bay', 'BAY');
@@ -80,12 +82,12 @@ testBoth('can be chained with observes', function(get, set) {
 QUnit.module('Function.prototype.property() helper');
 
 testBoth('sets up a ComputedProperty', function(get, set) {
-  if (Ember.EXTEND_PROTOTYPES === false) {
+  if (!ENV.EXTEND_PROTOTYPES.Function) {
     ok('undefined' === typeof Function.prototype.property, 'Function.prototype helper disabled');
     return;
   }
 
-  var MyClass = EmberObject.extend({
+  let MyClass = EmberObject.extend({
     firstName: null,
     lastName: null,
     fullName: function() {
@@ -93,7 +95,7 @@ testBoth('sets up a ComputedProperty', function(get, set) {
     }.property('firstName', 'lastName')
   });
 
-  var obj = MyClass.create({ firstName: 'Fred', lastName: 'Flinstone' });
+  let obj = MyClass.create({ firstName: 'Fred', lastName: 'Flinstone' });
   equal(get(obj, 'fullName'), 'Fred Flinstone', 'should return the computed value');
 
   set(obj, 'firstName', 'Wilma');

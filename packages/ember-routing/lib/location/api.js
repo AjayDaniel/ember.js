@@ -1,6 +1,6 @@
-import { assert } from 'ember-metal/debug';
-import environment from 'ember-metal/environment';
-import { getHash } from 'ember-routing/location/util';
+import { assert } from 'ember-debug';
+import { environment } from 'ember-environment';
+import { getHash } from './util';
 
 /**
 @module ember
@@ -119,6 +119,25 @@ import { getHash } from 'ember-routing/location/util';
 
   Calling setURL or replaceURL will not trigger onUpdateURL callbacks.
 
+  ## Custom implementation
+
+  Ember scans `app/locations/*` for extending the Location API.
+
+  Example:
+
+  ```javascript
+  import Ember from 'ember';
+
+  export default Ember.HistoryLocation.extend({
+    implementation: 'history-url-logging',
+
+    pushState: function (path) {
+      console.log(path);
+      this._super.apply(this, arguments);
+    }
+  });
+  ```
+
   @class Location
   @namespace Ember
   @static
@@ -147,10 +166,10 @@ export default {
     @private
   */
   create(options) {
-    var implementation = options && options.implementation;
+    let implementation = options && options.implementation;
     assert('Ember.Location.create: you must specify a \'implementation\' option', !!implementation);
 
-    var implementationClass = this.implementations[implementation];
+    let implementationClass = this.implementations[implementation];
     assert(`Ember.Location.create: ${implementation} is not a valid implementation`, !!implementationClass);
 
     return implementationClass.create(...arguments);

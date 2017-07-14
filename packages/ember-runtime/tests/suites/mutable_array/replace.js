@@ -1,14 +1,14 @@
-import {SuiteModuleBuilder} from 'ember-runtime/tests/suites/suite';
+import { SuiteModuleBuilder } from '../suite';
 
-var suite = SuiteModuleBuilder.create();
+const suite = SuiteModuleBuilder.create();
 
 suite.module('replace');
 
 suite.test('[].replace(0,0,\'X\') => [\'X\'] + notify', function() {
-  var obj, exp, observer;
-  exp = this.newFixture(1);
-  obj = this.newObject([]);
-  observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
+  let exp = this.newFixture(1);
+  let obj = this.newObject([]);
+  let observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
+
   obj.getProperties('firstObject', 'lastObject'); /* Prime the cache */
 
   obj.replace(0, 0, exp);
@@ -22,15 +22,31 @@ suite.test('[].replace(0,0,\'X\') => [\'X\'] + notify', function() {
   equal(observer.timesCalled('lastObject'), 1, 'should have notified lastObject once');
 });
 
+suite.test('[].replace(0,0,"X") => ["X"] + avoid calling objectAt and notifying fistObject/lastObject when not in cache', function() {
+  var obj, exp, observer;
+  var called = 0;
+  exp = this.newFixture(1);
+  obj = this.newObject([]);
+  obj.objectAt = function() {
+    called++;
+  };
+  observer = this.newObserver(obj, 'firstObject', 'lastObject');
+
+  obj.replace(0, 0, exp);
+
+  equal(called, 0, 'should NOT have called objectAt upon replace when firstObject/lastObject are not cached');
+  equal(observer.validate('firstObject'), false, 'should NOT have notified firstObject since not cached');
+  equal(observer.validate('lastObject'), false, 'should NOT have notified lastObject since not cached');
+});
+
 suite.test('[A,B,C,D].replace(1,2,X) => [A,X,D] + notify', function() {
-  var obj, observer, before, replace, after;
+  let before  = this.newFixture(4);
+  let replace = this.newFixture(1);
+  let after   = [before[0], replace[0], before[3]];
 
-  before  = this.newFixture(4);
-  replace = this.newFixture(1);
-  after   = [before[0], replace[0], before[3]];
+  let obj = this.newObject(before);
+  let observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
 
-  obj = this.newObject(before);
-  observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
   obj.getProperties('firstObject', 'lastObject'); /* Prime the cache */
 
   obj.replace(1, 2, replace);
@@ -46,14 +62,13 @@ suite.test('[A,B,C,D].replace(1,2,X) => [A,X,D] + notify', function() {
 });
 
 suite.test('[A,B,C,D].replace(1,2,[X,Y]) => [A,X,Y,D] + notify', function() {
-  var obj, observer, before, replace, after;
+  let before  = this.newFixture(4);
+  let replace = this.newFixture(2);
+  let after   = [before[0], replace[0], replace[1], before[3]];
 
-  before  = this.newFixture(4);
-  replace = this.newFixture(2);
-  after   = [before[0], replace[0], replace[1], before[3]];
+  let obj = this.newObject(before);
+  let observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
 
-  obj = this.newObject(before);
-  observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
   obj.getProperties('firstObject', 'lastObject'); /* Prime the cache */
 
   obj.replace(1, 2, replace);
@@ -69,14 +84,13 @@ suite.test('[A,B,C,D].replace(1,2,[X,Y]) => [A,X,Y,D] + notify', function() {
 });
 
 suite.test('[A,B].replace(1,0,[X,Y]) => [A,X,Y,B] + notify', function() {
-  var obj, observer, before, replace, after;
+  let before  = this.newFixture(2);
+  let replace = this.newFixture(2);
+  let after   = [before[0], replace[0], replace[1], before[1]];
 
-  before  = this.newFixture(2);
-  replace = this.newFixture(2);
-  after   = [before[0], replace[0], replace[1], before[1]];
+  let obj = this.newObject(before);
+  let observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
 
-  obj = this.newObject(before);
-  observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
   obj.getProperties('firstObject', 'lastObject'); /* Prime the cache */
 
   obj.replace(1, 0, replace);
@@ -92,13 +106,12 @@ suite.test('[A,B].replace(1,0,[X,Y]) => [A,X,Y,B] + notify', function() {
 });
 
 suite.test('[A,B,C,D].replace(2,2) => [A,B] + notify', function() {
-  var obj, observer, before, after;
+  let before  = this.newFixture(4);
+  let after   = [before[0], before[1]];
 
-  before  = this.newFixture(4);
-  after   = [before[0], before[1]];
+  let obj = this.newObject(before);
+  let observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
 
-  obj = this.newObject(before);
-  observer = this.newObserver(obj, '[]', '@each', 'length', 'firstObject', 'lastObject');
   obj.getProperties('firstObject', 'lastObject'); /* Prime the cache */
 
   obj.replace(2, 2);
@@ -114,10 +127,10 @@ suite.test('[A,B,C,D].replace(2,2) => [A,B] + notify', function() {
 });
 
 suite.test('Adding object should notify enumerable observer', function() {
-  var fixtures = this.newFixture(4);
-  var obj = this.newObject(fixtures);
-  var observer = this.newObserver(obj).observeEnumerable(obj);
-  var item = this.newFixture(1)[0];
+  let fixtures = this.newFixture(4);
+  let obj = this.newObject(fixtures);
+  let observer = this.newObserver(obj).observeEnumerable(obj);
+  let item = this.newFixture(1)[0];
 
   obj.replace(2, 2, [item]);
 
@@ -126,10 +139,10 @@ suite.test('Adding object should notify enumerable observer', function() {
 });
 
 suite.test('Adding object should notify array observer', function() {
-  var fixtures = this.newFixture(4);
-  var obj = this.newObject(fixtures);
-  var observer = this.newObserver(obj).observeArray(obj);
-  var item = this.newFixture(1)[0];
+  let fixtures = this.newFixture(4);
+  let obj = this.newObject(fixtures);
+  let observer = this.newObserver(obj).observeArray(obj);
+  let item = this.newFixture(1)[0];
 
   obj.replace(2, 2, [item]);
 

@@ -1,8 +1,6 @@
-import Ember from 'ember-metal/core';
-import {get} from 'ember-metal/property_get';
-import {set} from 'ember-metal/property_set';
-import run from 'ember-metal/run_loop';
-import EmberObject from 'ember-runtime/system/object';
+import { context } from 'ember-environment';
+import { get, set, run } from 'ember-metal';
+import EmberObject from '../../../../system/object';
 
 /*
   NOTE: This test is adapted from the 1.x series of unit tests.  The tests
@@ -21,14 +19,13 @@ import EmberObject from 'ember-runtime/system/object';
 // EmberObject bindings Tests
 // ========================================================================
 
-var testObject, fromObject, extraObject, TestObject;
-var TestNamespace, originalLookup, lookup;
+let originalLookup = context.lookup;
+let testObject, fromObject, TestObject;
+let TestNamespace, lookup;
 
-var bindModuleOpts = {
-
+QUnit.module('bind() method', {
   setup() {
-    originalLookup = Ember.lookup;
-    Ember.lookup = lookup = {};
+    context.lookup = lookup = {};
 
     testObject = EmberObject.create({
       foo: 'bar',
@@ -41,10 +38,6 @@ var bindModuleOpts = {
       extraObject: null
     });
 
-    extraObject = EmberObject.create({
-      foo: 'extraObjectValue'
-    });
-
     lookup['TestNamespace'] = TestNamespace = {
       fromObject: fromObject,
       testObject: testObject
@@ -52,18 +45,17 @@ var bindModuleOpts = {
   },
 
   teardown() {
-    testObject = fromObject = extraObject = null;
-    Ember.lookup = originalLookup;
+    testObject = fromObject = null;
+    context.lookup = originalLookup;
   }
-
-};
-
-QUnit.module('bind() method', bindModuleOpts);
+});
 
 QUnit.test('bind(TestNamespace.fromObject.bar) should follow absolute path', function() {
-  run(function() {
-    // create binding
-    testObject.bind('foo', 'TestNamespace.fromObject.bar');
+  run(() => {
+    expectDeprecation(() => {
+      // create binding
+      testObject.bind('foo', 'TestNamespace.fromObject.bar');
+    }, /`Ember.Binding` is deprecated/);
 
     // now make a change to see if the binding triggers.
     set(fromObject, 'bar', 'changedValue');
@@ -73,9 +65,11 @@ QUnit.test('bind(TestNamespace.fromObject.bar) should follow absolute path', fun
 });
 
 QUnit.test('bind(.bar) should bind to relative path', function() {
-  run(function() {
-    // create binding
-    testObject.bind('foo', 'bar');
+  run(() => {
+    expectDeprecation(() => {
+      // create binding
+      testObject.bind('foo', 'bar');
+    }, /`Ember.Binding` is deprecated/);
 
     // now make a change to see if the binding triggers.
     set(testObject, 'bar', 'changedValue');
@@ -84,11 +78,9 @@ QUnit.test('bind(.bar) should bind to relative path', function() {
   equal('changedValue', get(testObject, 'foo'), 'testObject.foo');
 });
 
-var fooBindingModuleOpts = {
-
+QUnit.module('fooBinding method', {
   setup() {
-    originalLookup = Ember.lookup;
-    Ember.lookup = lookup = {};
+    context.lookup = lookup = {};
 
     TestObject = EmberObject.extend({
       foo: 'bar',
@@ -101,10 +93,6 @@ var fooBindingModuleOpts = {
       extraObject: null
     });
 
-    extraObject = EmberObject.create({
-      foo: 'extraObjectValue'
-    });
-
     lookup['TestNamespace'] = TestNamespace = {
       fromObject: fromObject,
       testObject: TestObject
@@ -112,22 +100,22 @@ var fooBindingModuleOpts = {
   },
 
   teardown() {
-    Ember.lookup = originalLookup;
-    TestObject = fromObject = extraObject = null;
+    context.lookup = originalLookup;
+    TestObject = fromObject = null;
     //  delete TestNamespace;
   }
+});
 
-};
-
-QUnit.module('fooBinding method', fooBindingModuleOpts);
-
+let deprecationMessage = /`Ember.Binding` is deprecated/;
 
 QUnit.test('fooBinding: TestNamespace.fromObject.bar should follow absolute path', function() {
-  // create binding
-  run(function() {
-    testObject = TestObject.extend({
-      fooBinding: 'TestNamespace.fromObject.bar'
-    }).create();
+  run(() => {
+    expectDeprecation(() => {
+      // create binding
+      testObject = TestObject.extend({
+        fooBinding: 'TestNamespace.fromObject.bar'
+      }).create();
+    }, deprecationMessage);
 
     // now make a change to see if the binding triggers.
     set(fromObject, 'bar', 'changedValue');
@@ -137,10 +125,14 @@ QUnit.test('fooBinding: TestNamespace.fromObject.bar should follow absolute path
 });
 
 QUnit.test('fooBinding: .bar should bind to relative path', function() {
-  run(function() {
-    testObject = TestObject.extend({
-      fooBinding: 'bar'
-    }).create();
+  run(() => {
+    expectDeprecation(() => {
+      // create binding
+      testObject = TestObject.extend({
+        fooBinding: 'bar'
+      }).create();
+    }, deprecationMessage);
+
     // now make a change to see if the binding triggers.
     set(testObject, 'bar', 'changedValue');
   });
@@ -149,23 +141,22 @@ QUnit.test('fooBinding: .bar should bind to relative path', function() {
 });
 
 QUnit.test('fooBinding: should disconnect bindings when destroyed', function () {
-  run(function() {
-    testObject = TestObject.extend({
-      fooBinding: 'TestNamespace.fromObject.bar'
-    }).create();
+  run(() => {
+    expectDeprecation(() => {
+      // create binding
+      testObject = TestObject.extend({
+        fooBinding: 'TestNamespace.fromObject.bar'
+      }).create();
+    }, deprecationMessage);
 
     set(TestNamespace.fromObject, 'bar', 'BAZ');
   });
 
   equal(get(testObject, 'foo'), 'BAZ', 'binding should have synced');
 
-  run(() => {
-    testObject.destroy();
-  });
+  run(() => testObject.destroy());
 
-  run(function() {
-    set(TestNamespace.fromObject, 'bar', 'BIFF');
-  });
+  run(() => set(TestNamespace.fromObject, 'bar', 'BIFF'));
 
   ok(get(testObject, 'foo') !== 'bar', 'binding should not have synced');
 });

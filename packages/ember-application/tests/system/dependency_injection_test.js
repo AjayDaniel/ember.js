@@ -1,18 +1,15 @@
-import Ember from 'ember-metal/core';
-import run from 'ember-metal/run_loop';
-import EmberObject from 'ember-runtime/system/object';
-import Application from 'ember-application/system/application';
+import { ENV, context } from 'ember-environment';
+import { run } from 'ember-metal';
+import { Object as EmberObject } from 'ember-runtime';
+import Application from '../../system/application';
 
-var EmberApplication = Application;
+let EmberApplication = Application;
 
-var originalLookup = Ember.lookup;
-var registry, locator, lookup, application, originalModelInjections;
+let originalLookup = context.lookup;
+let registry, locator, application;
 
 QUnit.module('Ember.Application Dependency Injection', {
   setup() {
-    originalModelInjections = Ember.MODEL_FACTORY_INJECTIONS;
-    Ember.MODEL_FACTORY_INJECTIONS = true;
-
     application = run(EmberApplication, 'create');
 
     application.Person              = EmberObject.extend({});
@@ -30,19 +27,18 @@ QUnit.module('Ember.Application Dependency Injection', {
     registry = application.__registry__;
     locator = application.__container__;
 
-    lookup = Ember.lookup = {};
+    context.lookup = {};
   },
   teardown() {
     run(application, 'destroy');
     application = locator = null;
-    Ember.lookup = originalLookup;
-    Ember.MODEL_FACTORY_INJECTIONS = originalModelInjections;
+    context.lookup = originalLookup;
   }
 });
 
 QUnit.test('container lookup is normalized', function() {
-  var dotNotationController = locator.lookup('controller:post.index');
-  var camelCaseController = locator.lookup('controller:postIndex');
+  let dotNotationController = locator.lookup('controller:post.index');
+  let camelCaseController = locator.lookup('controller:postIndex');
 
   ok(dotNotationController instanceof application.PostIndexController);
   ok(camelCaseController instanceof application.PostIndexController);
@@ -66,9 +62,9 @@ QUnit.test('injections', function() {
   application.inject('model', 'fruit', 'fruit:favorite');
   application.inject('model:user', 'communication', 'communication:main');
 
-  var user = locator.lookup('model:user');
-  var person = locator.lookup('model:person');
-  var fruit = locator.lookup('fruit:favorite');
+  let user = locator.lookup('model:user');
+  let person = locator.lookup('model:person');
+  let fruit = locator.lookup('fruit:favorite');
 
   equal(user.get('fruit'), fruit);
   equal(person.get('fruit'), fruit);

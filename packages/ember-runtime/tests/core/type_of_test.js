@@ -1,20 +1,21 @@
-import { typeOf } from 'ember-runtime/utils';
-import EmberObject from 'ember-runtime/system/object';
+import { typeOf } from '../../utils';
+import EmberObject from '../../system/object';
+import { environment } from 'ember-environment';
 
 QUnit.module('Ember Type Checking');
 
 QUnit.test('Ember.typeOf', function() {
-  var MockedDate = function() { };
+  let MockedDate = function() { };
   MockedDate.prototype = new Date();
 
-  var mockedDate  = new MockedDate();
-  var date        = new Date();
-  var error       = new Error('boum');
-  var object      = { a: 'b' };
-  var a = null;
-  var arr = [1, 2, 3];
-  var obj = {};
-  var instance = EmberObject.create({ method() {} });
+  let mockedDate  = new MockedDate();
+  let date        = new Date();
+  let error       = new Error('boum');
+  let object      = { a: 'b' };
+  let a = null;
+  let arr = [1, 2, 3];
+  let obj = {};
+  let instance = EmberObject.create({ method() {} });
 
   equal(typeOf(), 'undefined', 'undefined');
   equal(typeOf(null), 'null', 'null');
@@ -36,3 +37,12 @@ QUnit.test('Ember.typeOf', function() {
   equal(typeOf(EmberObject.extend()), 'class', 'item of type class');
   equal(typeOf(new Error()), 'error', 'item of type error');
 });
+
+if (environment.window && typeof environment.window.FileList === 'function') {
+  QUnit.test('Ember.typeOf(fileList)', function() {
+    let fileListElement = document.createElement('input');
+    fileListElement.type = 'file';
+    let fileList = fileListElement.files;
+    equal(typeOf(fileList), 'filelist', 'item of type filelist');
+  });
+}

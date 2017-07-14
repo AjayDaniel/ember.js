@@ -1,13 +1,12 @@
-/*jshint node:true*/
-/*globals global,__dirname*/
+/* eslint-env node */
+/* eslint-disable no-console */
 
 var path = require('path');
 var QUnit = require('qunitjs');
 
 var distPath = path.join(__dirname, '../../../dist');
-var emberPath = path.join(distPath, 'ember.debug.cjs');
+var emberPath = path.join(distPath, 'ember.debug');
 var templateCompilerPath = path.join(distPath, 'ember-template-compiler');
-var features = require(path.join(__dirname, '../../../features.json')).features;
 var SimpleDOM = require('simple-dom');
 
 /*
@@ -62,28 +61,6 @@ var SimpleDOM = require('simple-dom');
  *     });
 */
 
-// Server-side rendering relies on the `ember-application-visit` feature flag.
-// If the flag is enabled, or if the flag is disabled but not stripped, we can
-// run the tests. Otherwise, for builds that have the feature stripped, we just
-// skip the tests.
-var canRunTests = features['ember-application-visit'] != false;
-
-if (canRunTests) {
-  // Enable the flag if it was disabled but not stripped.
-  features['ember-application-visit'] = true;
-
-  /*jshint -W079 */
-  global.EmberENV = {
-    FEATURES: features,
-    // Views are disabled but can be re-enabled via an addon.
-    // This flag simulates the addon so we can verify those
-    // views remain compatible with FastBoot. This can
-    // be removed in Ember 2.4 when view support is dropped
-    // entirely.
-    _ENABLE_LEGACY_VIEW_SUPPORT: true
-  };
-}
-
 module.exports = function(moduleName) {
   QUnit.module(moduleName, {
     beforeEach: function() {
@@ -91,7 +68,14 @@ module.exports = function(moduleName) {
 
       Ember.testing = true;
 
-      this.compile = require(templateCompilerPath).compile;
+      var precompile = require(templateCompilerPath).precompile;
+      this.compile = function(templateString, options) {
+        var templateSpec = precompile(templateString, options);
+        var template = new Function('return ' + templateSpec)();
+
+        return Ember.HTMLBars.template(template);
+      };
+
       this.run = Ember.run;
       this.all = Ember.RSVP.all;
 
@@ -103,7 +87,6 @@ module.exports = function(moduleName) {
       this.controller = registerController;
       this.route = registerRoute;
       this.service = registerService;
-      this.view = registerView;
       this.routes = registerRoutes;
       this.registry = {};
       this.renderToHTML = renderToHTML;
@@ -120,8 +103,6 @@ module.exports = function(moduleName) {
     }
   });
 };
-
-module.exports.canRunTests = canRunTests;
 
 function createApplication() {
   if (this.app) return this.app;
@@ -160,6 +141,9 @@ function visit(url) {
     isBrowser: false,
     document: dom,
     rootElement: dom.body
+  })
+  .catch(function(error) {
+    console.error(error.stack);
   });
 }
 
@@ -173,11 +157,8 @@ function renderToHTML(url) {
     document: dom,
     rootElement: root
   }).then(function() {
-    var element = root;
     var serializer = new SimpleDOM.HTMLSerializer(SimpleDOM.voidMap);
-    var serialized = serializer.serialize(root);
-
-    return serialized;
+    return serializer.serialize(root);
   });
 }
 
@@ -193,32 +174,27 @@ function registerApplicationClasses(app, registry) {
 }
 
 function registerTemplate(name, template) {
-  this.register('template:'+name, this.compile(template));
+  this.register('template:' + name, this.compile(template));
 }
 
 function registerComponent(name, componentProps) {
   var component = this.Ember.Component.extend(componentProps);
-  this.register('component:'+name, component);
+  this.register('component:' + name, component);
 }
 
 function registerController(name, controllerProps) {
   var controller = this.Ember.Controller.extend(controllerProps);
-  this.register('controller:'+name, controller);
+  this.register('controller:' + name, controller);
 }
 
 function registerRoute(name, routeProps) {
   var route = this.Ember.Route.extend(routeProps);
-  this.register('route:'+name, route);
+  this.register('route:' + name, route);
 }
 
 function registerService(name, serviceProps) {
   var service = this.Ember.Object.extend(serviceProps);
-  this.register('service:'+name, service);
-}
-
-function registerView(name, viewProps) {
-  var view = this.Ember.View.extend(viewProps);
-  this.register('view:'+name, view);
+  this.register('service:' + name, service);
 }
 
 function registerRoutes(cb) {

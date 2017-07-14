@@ -2,7 +2,7 @@ import {
   HANDLERS,
   registerHandler,
   invoke
-} from 'ember-debug/handlers';
+} from '../handlers';
 
 QUnit.module('ember-debug/handlers', {
   teardown() {
@@ -92,9 +92,7 @@ QUnit.test('handlers are called in the proper order', function(assert) {
     };
   }
 
-  expected.forEach(function(item) {
-    registerHandler('blarz', generateHandler(item));
-  });
+  expected.forEach(item => registerHandler('blarz', generateHandler(item)));
 
   invoke('blarz', expectedMessage, false, expectedOptions);
 

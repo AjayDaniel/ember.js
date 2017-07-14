@@ -1,82 +1,96 @@
-import { moduleFor } from '../../utils/test-case';
-import { set } from 'ember-metal/property_set';
-import {
-  BASIC_TRUTHY_TESTS,
-  BASIC_FALSY_TESTS,
-  SharedSyntaxConditionalsTest
-} from '../../utils/shared-conditional-tests';
+import { Component } from '../../utils/helpers';
+import { A as emberA } from 'ember-runtime';
+import { set } from 'ember-metal';
+import { strip } from '../../utils/abstract-test-case';
 
-moduleFor('Syntax test: {{#if}}', class extends SharedSyntaxConditionalsTest {
+import { RenderingTest, moduleFor } from '../../utils/test-case';
+import { IfUnlessWithSyntaxTest } from '../../utils/shared-conditional-tests';
+
+moduleFor('Syntax test: {{#if}} with inverse', class extends IfUnlessWithSyntaxTest {
 
   templateFor({ cond, truthy, falsy }) {
     return `{{#if ${cond}}}${truthy}{{else}}${falsy}{{/if}}`;
   }
 
-  ['@test it renders and hides the given block based on the conditional']() {
-    this.render(`{{#if cond1}}T1{{/if}}{{#if cond2}}T2{{/if}}`, { cond1: true, cond2: false });
+});
 
-    this.assertText('T1');
-
-    this.runTask(() => this.rerender());
-
-    this.assertText('T1');
-
-    this.runTask(() => set(this.context, 'cond1', false));
-
-    this.assertText('');
-
-    this.runTask(() => {
-      set(this.context, 'cond1', true);
-      set(this.context, 'cond2', true);
-    });
-
-    this.assertText('T1T2');
-
-    this.runTask(() => {
-      set(this.context, 'cond1', true);
-      set(this.context, 'cond2', false);
-    });
-
-    this.assertText('T1');
-  }
-
-}, BASIC_TRUTHY_TESTS, BASIC_FALSY_TESTS);
-
-moduleFor('Syntax test: {{#unless}}', class extends SharedSyntaxConditionalsTest {
+moduleFor('Syntax test: {{#unless}} with inverse', class extends IfUnlessWithSyntaxTest {
 
   templateFor({ cond, truthy, falsy }) {
     return `{{#unless ${cond}}}${falsy}{{else}}${truthy}{{/unless}}`;
   }
 
-  ['@test it renders and hides the given block based on the conditional']() {
-    this.render(`{{#unless cond1}}F1{{/unless}}{{#unless cond2}}F2{{/unless}}`, {
-      cond1: true,
-      cond2: false
+});
+
+moduleFor('Syntax test: {{#if}} and {{#unless}} without inverse', class extends IfUnlessWithSyntaxTest {
+
+  templateFor({ cond, truthy, falsy }) {
+    return `{{#if ${cond}}}${truthy}{{/if}}{{#unless ${cond}}}${falsy}{{/unless}}`;
+  }
+
+});
+
+moduleFor('Syntax test: {{#if}}', class extends RenderingTest {
+
+  ['@test using `if` with an `{{each}}` destroys components when transitioning to and from inverse (GH #12267)'](assert) {
+    let destroyedChildrenCount = 0;
+
+    this.registerComponent('foo-bar', {
+      template: '{{number}}',
+      ComponentClass: Component.extend({
+        willDestroy() {
+          this._super();
+          destroyedChildrenCount++;
+        }
+      })
     });
 
-    this.assertText('F2');
+    this.render(strip`
+      {{#if cond}}
+        {{#each numbers as |number|}}
+          {{foo-bar number=number}}
+        {{/each}}
+      {{else}}
+        Nothing Here!
+      {{/if}}`, { cond: true, numbers: emberA([1, 2, 3]) });
+
+    this.assertText('123');
 
     this.runTask(() => this.rerender());
 
-    this.assertText('F2');
+    this.assertText('123');
 
-    this.runTask(() => set(this.context, 'cond2', true));
+    this.runTask(() => set(this.context, 'cond', false));
 
-    this.assertText('');
+    this.assertText('Nothing Here!');
+    assert.equal(destroyedChildrenCount, 3, 'the children were properly destroyed');
 
-    this.runTask(() => {
-      set(this.context, 'cond1', false);
-      set(this.context, 'cond2', false);
-    });
+    this.runTask(() => set(this.context, 'cond', true));
 
-    this.assertText('F1F2');
-
-    this.runTask(() => {
-      set(this.context, 'cond1', true);
-      set(this.context, 'cond2', false);
-    });
-
-    this.assertText('F2');
+    this.assertText('123');
   }
 
-}, BASIC_TRUTHY_TESTS, BASIC_FALSY_TESTS);
+  ['@test looking up `undefined` property defaults to false'](assert) {
+    this.render(strip`
+      {{#if foo.bar.baz}}
+        Here!
+      {{else}}
+        Nothing Here!
+      {{/if}}`, { foo: {} });
+
+    this.assertText('Nothing Here!');
+
+    this.runTask(() => this.rerender());
+
+    this.assertText('Nothing Here!');
+
+    this.runTask(() => set(this.context, 'foo', { bar: { baz: true } }));
+
+    this.assertText('Here!');
+
+    this.runTask(() => set(this.context, 'foo', {}));
+
+    this.assertText('Nothing Here!');
+  }
+
+});

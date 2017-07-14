@@ -3,21 +3,22 @@
 var RSVP  = require('rsvp');
 var spawn = require('child_process').spawn;
 var chalk = require('chalk');
-var packages = require('../lib/packages');
+var FEATURES = require('../broccoli/features');
+var getPackages = require('../lib/packages');
 var runInSequence = require('../lib/run-in-sequence');
 
-var finalhandler = require('finalhandler')
-var http = require('http')
-var serveStatic = require('serve-static')
+var finalhandler = require('finalhandler');
+var http = require('http');
+var serveStatic = require('serve-static');
 
 // Serve up public/ftp folder.
-var serve = serveStatic('./dist/', {'index': ['index.html', 'index.htm']})
+var serve = serveStatic('./dist/', { 'index': ['index.html', 'index.htm'] });
 
 // Create server.
-var server = http.createServer(function(req, res){
-  var done = finalhandler(req, res)
-  serve(req, res, done)
-})
+var server = http.createServer(function(req, res) {
+  var done = finalhandler(req, res);
+  serve(req, res, done);
+});
 
 var PORT = 13141;
 // Listen.
@@ -31,7 +32,7 @@ function run(queryString) {
 }
 
 function runInPhantom(url, retries, resolve, reject) {
-  var args = ['bower_components/qunit-phantom-runner/runner.js', url];
+  var args = [require.resolve('qunit-phantomjs-runner'), url, '900'];
 
   console.log('Running: phantomjs ' + args.join(' '));
 
@@ -89,6 +90,9 @@ function runInPhantom(url, retries, resolve, reject) {
 var testFunctions = [];
 
 function generateEachPackageTests() {
+  var features = FEATURES;
+  var packages = getPackages(features);
+
   Object.keys(packages).forEach(function(packageName) {
     if (packages[packageName].skipTests) { return; }
 
@@ -106,7 +110,7 @@ function generateBuiltTests() {
   // ember-testing/ember-debug are stripped from prod/min.
   var common = 'skipPackage=container,ember-testing,ember-debug';
   testFunctions.push(function() {
-    return run(common + '&nojshint=true');
+    return run(common + '&nolint=true');
   });
   testFunctions.push(function() {
     return run(common + '&dist=min&prod=true');
@@ -121,19 +125,22 @@ function generateBuiltTests() {
 
 function generateOldJQueryTests() {
   testFunctions.push(function() {
-    return run('jquery=1.8.3&nojshint=true');
+    return run('jquery=1.8.3&nolint=true');
   });
   testFunctions.push(function() {
-    return run('jquery=1.10.2&nojshint=true');
+    return run('jquery=1.10.2&nolint=true');
+  });
+  testFunctions.push(function() {
+    return run('jquery=2.2.4&nolint=true');
   });
 }
 
 function generateExtendPrototypeTests() {
   testFunctions.push(function() {
-    return run('extendprototypes=true&nojshint=true');
+    return run('extendprototypes=true&nolint=true');
   });
   testFunctions.push(function() {
-    return run('extendprototypes=true&nojshint=true&enableoptionalfeatures=true');
+    return run('extendprototypes=true&nolint=true&enableoptionalfeatures=true');
   });
 }
 
@@ -158,6 +165,16 @@ switch (process.env.TEST_SUITE) {
     console.log('suite: node');
     require('./run-node-tests');
     return;
+  case 'blueprints':
+    console.log('suite: blueprints');
+    require('../node-tests/nodetest-runner');
+    server.close();
+    return;
+  case 'travis-browsers':
+    console.log('suite: travis-browsers');
+    require('./run-travis-browser-tests');
+    return;
+
   case 'sauce':
     console.log('suite: sauce');
     require('./run-sauce-tests');

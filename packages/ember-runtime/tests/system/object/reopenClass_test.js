@@ -1,10 +1,10 @@
-import {get} from 'ember-metal/property_get';
-import EmberObject from 'ember-runtime/system/object';
+import { get } from 'ember-metal';
+import EmberObject from '../../../system/object';
 
 QUnit.module('system/object/reopenClass');
 
 QUnit.test('adds new properties to subclass', function() {
-  var Subclass = EmberObject.extend();
+  let Subclass = EmberObject.extend();
   Subclass.reopenClass({
     foo() { return 'FOO'; },
     bar: 'BAR'
@@ -15,13 +15,13 @@ QUnit.test('adds new properties to subclass', function() {
 });
 
 QUnit.test('class properties inherited by subclasses', function() {
-  var Subclass = EmberObject.extend();
+  let Subclass = EmberObject.extend();
   Subclass.reopenClass({
     foo() { return 'FOO'; },
     bar: 'BAR'
   });
 
-  var SubSub = Subclass.extend();
+  let SubSub = Subclass.extend();
 
   equal(SubSub.foo(), 'FOO', 'Adds method');
   equal(get(SubSub, 'bar'), 'BAR', 'Adds property');

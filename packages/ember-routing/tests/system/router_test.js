@@ -1,17 +1,16 @@
-import HashLocation from 'ember-routing/location/hash_location';
-import HistoryLocation from 'ember-routing/location/history_location';
-import AutoLocation from 'ember-routing/location/auto_location';
-import NoneLocation from 'ember-routing/location/none_location';
-import Router from 'ember-routing/system/router';
-import { runDestroy } from 'ember-runtime/tests/utils';
-import buildOwner from 'container/tests/test-helpers/build-owner';
-import { setOwner } from 'container/owner';
+import { setOwner } from 'ember-utils';
+import HashLocation from '../../location/hash_location';
+import HistoryLocation from '../../location/history_location';
+import AutoLocation from '../../location/auto_location';
+import NoneLocation from '../../location/none_location';
+import Router, { triggerEvent } from '../../system/router';
+import { runDestroy, buildOwner } from 'internal-test-helpers';
 
-var owner;
+let owner;
 
 function createRouter(settings, options = {}) {
-  var CustomRouter = Router.extend();
-  var router = CustomRouter.create(settings);
+  let CustomRouter = Router.extend();
+  let router = CustomRouter.create(settings);
 
   if (!options.skipOwner) {
     setOwner(router, owner);
@@ -46,14 +45,21 @@ QUnit.test('can create a router without an owner', function() {
   ok(true, 'no errors were thrown when creating without a container');
 });
 
-QUnit.test('should not create a router.js instance upon init', function() {
-  var router = createRouter(null, { disableSetup: true });
+QUnit.test('[GH#15237] EmberError is imported correctly', function() {
+  // If we get the right message it means Error is being imported correctly.
+  throws(function() {
+    triggerEvent(null, false, []);
+  }, /because your app hasn't finished transitioning/);
+});
 
-  ok(!router.router);
+QUnit.test('should not create a router.js instance upon init', function() {
+  let router = createRouter(null, { disableSetup: true });
+
+  ok(!router._routerMicrolib);
 });
 
 QUnit.test('should not reify location until setupRouter is called', function() {
-  var router = createRouter(null, { disableSetup: true });
+  let router = createRouter(null, { disableSetup: true });
   equal(typeof router.location, 'string', 'location is specified as a string');
 
   router.setupRouter();
@@ -62,8 +68,8 @@ QUnit.test('should not reify location until setupRouter is called', function() {
 });
 
 QUnit.test('should destroy its location upon destroying the routers owner.', function() {
-  var router = createRouter();
-  var location = router.get('location');
+  let router = createRouter();
+  let location = router.get('location');
 
   runDestroy(owner);
 
@@ -71,10 +77,10 @@ QUnit.test('should destroy its location upon destroying the routers owner.', fun
 });
 
 QUnit.test('should instantiate its location with its `rootURL`', function() {
-  var router = createRouter({
+  let router = createRouter({
     rootURL: '/rootdir/'
   });
-  var location = router.get('location');
+  let location = router.get('location');
 
   equal(location.get('rootURL'), '/rootdir/');
 });
@@ -82,9 +88,9 @@ QUnit.test('should instantiate its location with its `rootURL`', function() {
 QUnit.test('replacePath should be called with the right path', function() {
   expect(1);
 
-  var location = owner.lookup('location:auto');
+  let location = owner.lookup('location:auto');
 
-  var browserLocation = {
+  let browserLocation = {
     href: 'http://test.com/rootdir/welcome',
     origin: 'http://test.com',
     pathname: '/rootdir/welcome',
@@ -111,7 +117,7 @@ QUnit.test('Ember.Router._routePath should consume identical prefixes', function
   expect(8);
 
   function routePath(s1, s2, s3) {
-    var handlerInfos = Array.prototype.slice.call(arguments).map(function(s) {
+    let handlerInfos = Array.prototype.slice.call(arguments).map(function(s) {
       return { name: s };
     });
     handlerInfos.unshift({ name: 'ignored' });
@@ -135,8 +141,8 @@ QUnit.test('Ember.Router._routePath should consume identical prefixes', function
 QUnit.test('Router should cancel routing setup when the Location class says so via cancelRouterSetup', function() {
   expect(0);
 
-  var router;
-  var FakeLocation = {
+  let router;
+  let FakeLocation = {
     cancelRouterSetup: true,
     create() { return this; }
   };
@@ -157,7 +163,7 @@ QUnit.test('Router should cancel routing setup when the Location class says so v
 QUnit.test('AutoLocation should replace the url when it\'s not in the preferred format', function() {
   expect(1);
 
-  var location = owner.lookup('location:auto');
+  let location = owner.lookup('location:auto');
 
   location.location = {
     href: 'http://test.com/rootdir/welcome',
@@ -183,7 +189,7 @@ QUnit.test('AutoLocation should replace the url when it\'s not in the preferred 
 QUnit.test('Router#handleURL should remove any #hashes before doing URL transition', function() {
   expect(2);
 
-  var router = createRouter({
+  let router = createRouter({
     _doURLTransition(routerJsMethod, url) {
       equal(routerJsMethod, 'handleURL');
       equal(url, '/foo/bar?time=morphin');
@@ -191,4 +197,86 @@ QUnit.test('Router#handleURL should remove any #hashes before doing URL transiti
   });
 
   router.handleURL('/foo/bar?time=morphin#pink-power-ranger');
+});
+
+QUnit.test('Router#triggerEvent allows actions to bubble when returning true', function(assert) {
+  assert.expect(2);
+
+  let handlerInfos = [
+    {
+      name: 'application',
+      handler: {
+        actions: {
+          loading() {
+            assert.ok(false, 'loading not handled by application route');
+          }
+        }
+      }
+    },
+    {
+      name: 'about',
+      handler: {
+        actions: {
+          loading() {
+            assert.ok(true, 'loading handled by about route');
+            return false;
+          }
+        }
+      }
+    },
+    {
+      name: 'about.me',
+      handler: {
+        actions: {
+          loading() {
+            assert.ok(true, 'loading handled by about.me route');
+            return true;
+          }
+        }
+      }
+    }
+  ];
+
+  triggerEvent(handlerInfos, false, ['loading']);
+});
+
+QUnit.test('Router#triggerEvent ignores handlers that have not loaded yet', function(assert) {
+  assert.expect(1);
+
+  let handlerInfos = [
+    {
+      name: 'about',
+      handler: {
+        actions: {
+          loading() {
+            assert.ok(true, 'loading handled by about route');
+          }
+        }
+      }
+    },
+    {
+      name: 'about.me',
+      handler: undefined
+    }
+  ];
+
+  triggerEvent(handlerInfos, false, ['loading']);
+});
+
+QUnit.test('Router#router deprecates when called', function(assert) {
+  assert.expect(2);
+
+  let router = createRouter();
+
+  expectDeprecation(function() {
+    assert.equal(router.router, router._routerMicrolib);
+  }, 'Usage of `router` is deprecated, use `_routerMicrolib` instead.');
+});
+
+QUnit.test('Router#_routerMicrolib can be used without deprecation', function(assert) {
+  assert.expect(1);
+
+  let router = createRouter();
+
+  assert.ok(router._routerMicrolib, 'Router._routerMicrolib can be used without deprecation');
 });

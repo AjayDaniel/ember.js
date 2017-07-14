@@ -1,12 +1,11 @@
-import run from 'ember-metal/run_loop';
-import {computed} from 'ember-metal/computed';
-import EmberObject from 'ember-runtime/system/object';
+import { run, computed } from 'ember-metal';
+import EmberObject from '../../../system/object';
 
 QUnit.module('system/object/subclasses');
 
 QUnit.test('chains should copy forward to subclasses when prototype created', function () {
-  var ObjectWithChains, objWithChains, SubWithChains, SubSub, subSub;
-  run(function () {
+  let ObjectWithChains, objWithChains, SubWithChains, SubSub, subSub;
+  run(() => {
     ObjectWithChains = EmberObject.extend({
       obj: {
         a: 'a',
@@ -14,8 +13,15 @@ QUnit.test('chains should copy forward to subclasses when prototype created', fu
       },
       aBinding: 'obj.a' // add chain
     });
-    // realize prototype
-    objWithChains = ObjectWithChains.create();
+
+
+    let deprecationMessage = /`Ember.Binding` is deprecated/;
+
+    expectDeprecation(() => {
+      // realize prototype
+      objWithChains = ObjectWithChains.create();
+    }, deprecationMessage);
+
     // should not copy chains from parent yet
     SubWithChains = ObjectWithChains.extend({
       hiBinding: 'obj.hi', // add chain
@@ -24,13 +30,15 @@ QUnit.test('chains should copy forward to subclasses when prototype created', fu
       }).property('hi'), // observe chain
       greetingBinding: 'hello'
     });
+
     SubSub = SubWithChains.extend();
-    // should realize prototypes and copy forward chains
-    subSub = SubSub.create();
+
+    expectDeprecation(() => {
+      // should realize prototypes and copy forward chains
+      subSub = SubSub.create();
+    }, deprecationMessage);
   });
   equal(subSub.get('greeting'), 'hi world');
-  run(function () {
-    objWithChains.set('obj.hi', 'hello');
-  });
+  run(() => objWithChains.set('obj.hi', 'hello'));
   equal(subSub.get('greeting'), 'hello world');
 });

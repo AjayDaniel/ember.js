@@ -1,33 +1,31 @@
-import { runInDebug } from 'ember-metal/debug';
-import assign from 'ember-metal/assign';
-import EmberError from 'ember-metal/error';
-import { _addBeforeObserver } from 'ember-metal/observer';
+import { assign } from 'ember-utils';
+import { _addBeforeObserver } from 'ember-metal';
+import { Error as EmberError } from 'ember-debug';
+import { DEBUG } from 'ember-env-flags';
 
-import hasElement from 'ember-views/views/states/has_element';
+import hasElement from './has_element';
 /**
 @module ember
 @submodule ember-views
 */
 
-var inDOM = Object.create(hasElement);
+const inDOM = Object.create(hasElement);
 
 assign(inDOM, {
   enter(view) {
     // Register the view for event handling. This hash is used by
     // Ember.EventDispatcher to dispatch incoming events.
-    if (view.tagName !== '') {
-      view._register();
-    }
+    view.renderer.register(view);
 
-    runInDebug(function() {
-      _addBeforeObserver(view, 'elementId', function() {
+    if (DEBUG) {
+      _addBeforeObserver(view, 'elementId', () => {
         throw new EmberError('Changing a view\'s elementId after creation is not allowed');
       });
-    });
+    }
   },
 
   exit(view) {
-    view._unregister();
+    view.renderer.unregister(view);
   }
 });
 

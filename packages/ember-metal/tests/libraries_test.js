@@ -1,9 +1,10 @@
 /* globals EmberDev */
-import { getDebugFunction, setDebugFunction } from 'ember-metal/debug';
-import isEnabled from 'ember-metal/features';
-import Libraries from 'ember-metal/libraries';
+import { getDebugFunction, setDebugFunction } from 'ember-debug';
+import { Libraries } from '..';
+import { EMBER_LIBRARIES_ISREGISTERED } from 'ember/features';
 
-var libs, registry;
+let libs, registry;
+let originalWarn = getDebugFunction('warn');
 
 QUnit.module('Libraries registry', {
   setup() {
@@ -14,6 +15,8 @@ QUnit.module('Libraries registry', {
   teardown() {
     libs = null;
     registry = null;
+
+    setDebugFunction('warn', originalWarn);
   }
 });
 
@@ -38,7 +41,7 @@ QUnit.test('only the first registration of a library is stored', function() {
   equal(registry.length, 1);
 });
 
-if (isEnabled('ember-libraries-isregistered')) {
+if (EMBER_LIBRARIES_ISREGISTERED) {
   QUnit.test('isRegistered returns correct value', function() {
     expect(3);
 
@@ -60,7 +63,6 @@ QUnit.test('attempting to register a library that is already registered warns yo
 
   expect(1);
 
-  let originalWarn = getDebugFunction('warn');
 
   libs.register('magic', 1.23);
 
@@ -72,8 +74,6 @@ QUnit.test('attempting to register a library that is already registered warns yo
 
   // Should warn us
   libs.register('magic', 2.23);
-
-  setDebugFunction('warn', originalWarn);
 });
 
 QUnit.test('libraries can be de-registered', function() {

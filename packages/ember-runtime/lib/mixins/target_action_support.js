@@ -3,62 +3,41 @@
 @submodule ember-runtime
 */
 
-import Ember from 'ember-metal/core'; // Ember.lookup
-import { assert } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-import { Mixin } from 'ember-metal/mixin';
-import { computed } from 'ember-metal/computed';
-
+import { context } from 'ember-environment';
+import {
+  get,
+  Mixin,
+  computed
+} from 'ember-metal';
+import { assert } from 'ember-debug';
 /**
 `Ember.TargetActionSupport` is a mixin that can be included in a class
 to add a `triggerAction` method with semantics similar to the Handlebars
 `{{action}}` helper. In normal Ember usage, the `{{action}}` helper is
 usually the best choice. This mixin is most often useful when you are
-doing more complex event handling in View objects.
-
-See also `Ember.ViewTargetActionSupport`, which has
-view-aware defaults for target and actionContext.
+doing more complex event handling in Components.
 
 @class TargetActionSupport
 @namespace Ember
 @extends Ember.Mixin
 @private
 */
-var TargetActionSupport = Mixin.create({
+export default Mixin.create({
   target: null,
   action: null,
   actionContext: null,
 
-  targetObject: computed('target', function() {
-    if (this._targetObject) {
-      return this._targetObject;
-    }
-
-    var target = get(this, 'target');
-
-    if (typeof target === 'string') {
-      var value = get(this, target);
-      if (value === undefined) {
-        value = get(Ember.lookup, target);
-      }
-
-      return value;
-    } else {
-      return target;
-    }
-  }),
-
-  actionContextObject: computed(function() {
-    var actionContext = get(this, 'actionContext');
+  actionContextObject: computed('actionContext', function() {
+    let actionContext = get(this, 'actionContext');
 
     if (typeof actionContext === 'string') {
-      var value = get(this, actionContext);
-      if (value === undefined) { value = get(Ember.lookup, actionContext); }
+      let value = get(this, actionContext);
+      if (value === undefined) { value = get(context.lookup, actionContext); }
       return value;
     } else {
       return actionContext;
     }
-  }).property('actionContext'),
+  }),
 
   /**
   Send an `action` with an `actionContext` to a `target`. The action, actionContext
@@ -69,7 +48,7 @@ var TargetActionSupport = Mixin.create({
     target: Ember.computed.alias('controller'),
     action: 'save',
     actionContext: Ember.computed.alias('context'),
-    click: function() {
+    click() {
       this.triggerAction(); // Sends the `save` action, along with the current context
                             // to the current controller
     }
@@ -81,7 +60,7 @@ var TargetActionSupport = Mixin.create({
 
   ```javascript
   App.SaveButtonView = Ember.View.extend(Ember.TargetActionSupport, {
-    click: function() {
+    click() {
       this.triggerAction({
         action: 'save',
         target: this.get('controller'),
@@ -99,7 +78,7 @@ var TargetActionSupport = Mixin.create({
   ```javascript
   App.SaveButtonView = Ember.View.extend(Ember.TargetActionSupport, {
     target: Ember.computed.alias('controller'),
-    click: function() {
+    click() {
       this.triggerAction({
         action: 'save'
       }); // Sends the `save` action, along with a reference to `this`,
@@ -114,40 +93,56 @@ var TargetActionSupport = Mixin.create({
   @private
   */
   triggerAction(opts = {}) {
-    var action = opts.action || get(this, 'action');
-    var target = opts.target || get(this, 'targetObject');
-    var actionContext = opts.actionContext;
+    let { action, target, actionContext } = opts;
+    action = action || get(this, 'action');
+    target = target || getTarget(this);
 
-    function args(options, actionName) {
-      var ret = [];
-      if (actionName) { ret.push(actionName); }
-
-      return ret.concat(options);
-    }
-
-    if (typeof actionContext === 'undefined') {
+    if (actionContext === undefined) {
       actionContext = get(this, 'actionContextObject') || this;
     }
 
     if (target && action) {
-      var ret;
+      let ret;
 
       if (target.send) {
-        ret = target.send.apply(target, args(actionContext, action));
+        ret = target.send(...[action].concat(actionContext));
       } else {
-        assert('The action \'' + action + '\' did not exist on ' + target, typeof target[action] === 'function');
-        ret = target[action].apply(target, args(actionContext));
+        assert(`The action '${action}' did not exist on ${target}`, typeof target[action] === 'function');
+        ret = target[action](...[].concat(actionContext));
       }
 
       if (ret !== false) {
-        ret = true;
+        return true;
       }
-
-      return ret;
-    } else {
-      return false;
     }
+
+    return false;
   }
 });
 
-export default TargetActionSupport;
+function getTarget(instance) {
+  // TODO: Deprecate specifying `targetObject`
+  let target = get(instance, 'targetObject');
+
+  // if a `targetObject` CP was provided, use it
+  if (target) { return target; }
+
+  // if _targetObject use it
+  if (instance._targetObject) { return instance._targetObject; }
+
+  target = get(instance, 'target');
+  if (target) {
+    if (typeof target === 'string') {
+      let value = get(instance, target);
+      if (value === undefined) {
+        value = get(context.lookup, target);
+      }
+
+      return value;
+    } else {
+      return target;
+    }
+  }
+
+  return null;
+}

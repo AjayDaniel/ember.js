@@ -1,42 +1,29 @@
-import { assert, deprecate } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-
-import EmberObject from 'ember-runtime/system/object';
-import Evented from 'ember-runtime/mixins/evented';
-import ActionHandler, { deprecateUnderscoreActions } from 'ember-runtime/mixins/action_handler';
-import { typeOf } from 'ember-runtime/utils';
-
-import { Renderer } from 'ember-metal-views';
-import { cloneStates, states } from 'ember-views/views/states';
-import { internal } from 'htmlbars-runtime';
-import require from 'require';
-
-function K() { return this; }
-
-// Normally, the renderer is injected by the container when the view is looked
-// up. However, if someone creates a view without looking it up via the
-// container (e.g. `Ember.View.create().append()`) then we create a fallback
-// DOM renderer that is shared. In general, this path should be avoided since
-// views created this way cannot run in a node environment.
-var renderer;
+import {
+  ActionHandler,
+  Evented,
+  FrameworkObject,
+  deprecateUnderscoreActions
+} from 'ember-runtime';
+import { initViewElement } from '../system/utils';
+import { cloneStates, states } from './states';
 
 /**
   `Ember.CoreView` is an abstract class that exists to give view-like behavior
-  to both Ember's main view class `Ember.View` and other classes that don't need
-  the fully functionaltiy of `Ember.View`.
+  to both Ember's main view class `Ember.Component` and other classes that don't need
+  the full functionality of `Ember.Component`.
 
-  Unless you have specific needs for `CoreView`, you will use `Ember.View`
+  Unless you have specific needs for `CoreView`, you will use `Ember.Component`
   in your applications.
 
   @class CoreView
   @namespace Ember
   @extends Ember.Object
-  @deprecated Use `Ember.View` instead.
+  @deprecated Use `Ember.Component` instead.
   @uses Ember.Evented
   @uses Ember.ActionHandler
   @private
 */
-const CoreView = EmberObject.extend(Evented, ActionHandler, {
+const CoreView = FrameworkObject.extend(Evented, ActionHandler, {
   isView: true,
 
   _states: cloneStates(states),
@@ -45,18 +32,12 @@ const CoreView = EmberObject.extend(Evented, ActionHandler, {
     this._super(...arguments);
     this._state = 'preRender';
     this._currentState = this._states.preRender;
-    this._isVisible = get(this, 'isVisible');
 
-    // Fallback for legacy cases where the view was created directly
-    // via `create()` instead of going through the container.
+    initViewElement(this);
+
     if (!this.renderer) {
-      var DOMHelper = domHelper();
-      renderer = renderer || new Renderer(new DOMHelper());
-      this.renderer = renderer;
+      throw new Error(`Cannot instantiate a component without a renderer. Please ensure that you are creating ${this} with a proper container/registry.`);
     }
-
-    this._destroyingSubtreeForView = null;
-    this._dispatching = null;
   },
 
   /**
@@ -70,14 +51,11 @@ const CoreView = EmberObject.extend(Evented, ActionHandler, {
   */
   parentView: null,
 
-  _state: null,
-
-  instrumentName: 'core_view',
-
   instrumentDetails(hash) {
     hash.object = this.toString();
     hash.containerKey = this._debugContainerKey;
     hash.view = this;
+    return hash;
   },
 
   /**
@@ -88,46 +66,17 @@ const CoreView = EmberObject.extend(Evented, ActionHandler, {
     @param name {String}
     @private
   */
-  trigger() {
+  trigger(name, ...args) {
     this._super(...arguments);
-    var name = arguments[0];
-    var method = this[name];
-    if (method) {
-      var length = arguments.length;
-      var args = new Array(length - 1);
-      for (var i = 1; i < length; i++) {
-        args[i - 1] = arguments[i];
-      }
+    let method = this[name];
+    if (typeof method === 'function') {
       return method.apply(this, args);
     }
   },
 
   has(name) {
-    return typeOf(this[name]) === 'function' || this._super(name);
-  },
-
-  destroy() {
-    if (!this._super(...arguments)) { return; }
-
-    this._currentState.cleanup(this);
-
-    // If the destroyingSubtreeForView property is not set but we have an
-    // associated render node, it means this view is being destroyed from user
-    // code and not via a change in the templating layer (like an {{if}}
-    // becoming falsy, for example).  In this case, it is our responsibility to
-    // make sure that any render nodes created as part of the rendering process
-    // are cleaned up.
-    if (!this.ownerView._destroyingSubtreeForView && this._renderNode) {
-      assert('BUG: Render node exists without concomitant env.', this.ownerView.env);
-      internal.clearMorph(this._renderNode, this.ownerView.env, true);
-    }
-
-    return this;
-  },
-
-  clearRenderedChildren: K,
-  _transitionTo: K,
-  destroyElement: K
+    return typeof this[name] === 'function' || this._super(name);
+  }
 });
 
 deprecateUnderscoreActions(CoreView);
@@ -135,20 +84,5 @@ deprecateUnderscoreActions(CoreView);
 CoreView.reopenClass({
   isViewFactory: true
 });
-
-export var DeprecatedCoreView = CoreView.extend({
-  init() {
-    deprecate(
-      'Ember.CoreView is deprecated. Please use Ember.View.',
-      false, { id: 'ember-views.core-view', until: '2.4.0' }
-    );
-    this._super(...arguments);
-  }
-});
-
-var _domHelper;
-function domHelper() {
-  return _domHelper = _domHelper || require('ember-htmlbars/system/dom-helper').default;
-}
 
 export default CoreView;

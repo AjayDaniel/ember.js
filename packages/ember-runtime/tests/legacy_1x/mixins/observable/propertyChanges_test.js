@@ -17,15 +17,13 @@
 // Ember.Observable Tests
 // ========================================================================
 
-import EmberObject from 'ember-runtime/system/object';
-import Observable from 'ember-runtime/mixins/observable';
-import {computed} from 'ember-metal/computed';
-import {observer} from 'ember-metal/mixin';
+import EmberObject from '../../../../system/object';
+import Observable from '../../../../mixins/observable';
+import { computed, observer } from 'ember-metal';
 
-var ObservableObject = EmberObject.extend(Observable);
+const ObservableObject = EmberObject.extend(Observable);
 
-var revMatches = false;
-var ObjectA;
+let ObjectA;
 
 QUnit.module('object.propertyChanges', {
   setup() {
@@ -42,16 +40,15 @@ QUnit.module('object.propertyChanges', {
       }),
 
       starObserver(target, key, value, rev) {
-        revMatches = (rev === target.propertyRevision);
         this.starProp = key;
       }
     }).create({
       starProp: null,
 
-      foo  : 'fooValue',
-      prop : 'propValue',
+      foo: 'fooValue',
+      prop: 'propValue',
 
-      newFoo : 'newFooValue',
+      newFoo: 'newFooValue',
       newProp: 'newPropValue'
     });
   }
@@ -117,7 +114,7 @@ QUnit.test('should notify that the property of an object has changed', function(
 });
 
 QUnit.test('should invalidate function property cache when notifyPropertyChange is called', function() {
-  var a = ObservableObject.extend({
+  let a = ObservableObject.extend({
     b: computed({
       get() { return this._b; },
       set(key, value) {

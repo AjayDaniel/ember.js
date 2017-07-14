@@ -1,55 +1,50 @@
-import { assert, deprecate } from 'ember-metal/debug';
-import calculateLocationDisplay from 'ember-template-compiler/system/calculate-location-display';
+import { assert, deprecate } from 'ember-debug';
+import calculateLocationDisplay from '../system/calculate-location-display';
 
-export default function TransformOldBindingSyntax(options) {
-  this.syntax = null;
-  this.options = options;
-}
+export default function transformOldBindingSyntax(env) {
+  let { moduleName } = env.meta;
+  let b = env.syntax.builders;
 
-TransformOldBindingSyntax.prototype.transform = function TransformOldBindingSyntax_transform(ast) {
-  var moduleName = this.options.moduleName;
-  var b = this.syntax.builders;
-  var walker = new this.syntax.Walker();
+  return {
+    name: 'transform-old-binding-syntax',
 
-  walker.visit(ast, function(node) {
-    if (!validate(node)) { return; }
+    visitors: {
+      BlockStatement(node) {
+        processHash(b, node, moduleName);
+      },
 
-    each(node.hash.pairs, function(pair) {
-      let { key, value } = pair;
-
-      var sourceInformation = calculateLocationDisplay(moduleName, pair.loc);
-
-      if (key === 'classBinding') { return; }
-
-      assert(`Setting 'attributeBindings' via template helpers is not allowed ${sourceInformation}`, key !== 'attributeBindings');
-
-      if (key.substr(-7) === 'Binding') {
-        let newKey = key.slice(0, -7);
-
-        deprecate(
-          `You're using legacy binding syntax: ${key}=${exprToString(value)} ${sourceInformation}. Please replace with ${newKey}=${value.original}`,
-          false,
-          { id: 'ember-template-compiler.transform-old-binding-syntax', until: '3.0.0' }
-        );
-
-        pair.key = newKey;
-        if (value.type === 'StringLiteral') {
-          pair.value = b.path(value.original);
-        }
+      MustacheStatement(node) {
+        processHash(b, node, moduleName);
       }
-    });
-  });
-
-  return ast;
-};
-
-function validate(node) {
-  return (node.type === 'BlockStatement' || node.type === 'MustacheStatement');
+    }
+  };
 }
 
-function each(list, callback) {
-  for (var i = 0, l = list.length; i < l; i++) {
-    callback(list[i]);
+function processHash(b, node, moduleName) {
+  for (let i = 0; i < node.hash.pairs.length; i++) {
+    let pair = node.hash.pairs[i];
+    let { key, value } = pair;
+
+    let sourceInformation = calculateLocationDisplay(moduleName, pair.loc);
+
+    if (key === 'classBinding') { return; }
+
+    assert(`Setting 'attributeBindings' via template helpers is not allowed ${sourceInformation}`, key !== 'attributeBindings');
+
+    if (key.substr(-7) === 'Binding') {
+      let newKey = key.slice(0, -7);
+
+      deprecate(
+        `You're using legacy binding syntax: ${key}=${exprToString(value)} ${sourceInformation}. Please replace with ${newKey}=${value.original}`,
+        false,
+        { id: 'ember-template-compiler.transform-old-binding-syntax', until: '3.0.0' }
+      );
+
+      pair.key = newKey;
+      if (value.type === 'StringLiteral') {
+        pair.value = b.path(value.original);
+      }
+    }
   }
 }
 

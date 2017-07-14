@@ -1,71 +1,53 @@
-import Ember from 'ember-metal/core'; // Ember.LOG_BINDINGS
-import Logger from 'ember-metal/logger';
-import run from 'ember-metal/run_loop';
-import { assert } from 'ember-metal/debug';
-import { get } from 'ember-metal/property_get';
-import { trySet } from 'ember-metal/property_set';
-import { guidFor } from 'ember-metal/utils';
-import { addListener } from 'ember-metal/events';
+import { guidFor } from 'ember-utils';
+import Logger from 'ember-console';
+import { context, ENV } from 'ember-environment';
+import run from './run_loop';
+import { assert, deprecate } from 'ember-debug';
+import { get } from './property_get';
+import { trySet } from './property_set';
+import { addListener } from './events';
 import {
   addObserver,
   removeObserver,
   _suspendObserver
-} from 'ember-metal/observer';
+} from './observer';
 import {
   isGlobalPath,
   getFirstKey,
   getTailPath
-} from 'ember-metal/path_cache';
+} from './path_cache';
 
-
-// ES6TODO: where is Ember.lookup defined?
 /**
 @module ember
 @submodule ember-metal
 */
 
 // ..........................................................
-// CONSTANTS
-//
-
-/**
-  Debug parameter you can turn on. This will log all bindings that fire to
-  the console. This should be disabled in production code. Note that you
-  can also enable this from the console or temporarily.
-
-  @property LOG_BINDINGS
-  @for Ember
-  @type Boolean
-  @default false
-  @public
-*/
-Ember.LOG_BINDINGS = false || !!Ember.ENV.LOG_BINDINGS;
-
-// ..........................................................
 // BINDING
 //
 
-function Binding(toPath, fromPath) {
-  // Configuration
-  this._from = fromPath;
-  this._to = toPath;
-  this._oneWay = undefined;
+class Binding {
+  constructor(toPath, fromPath) {
+    // Configuration
+    this._from = fromPath;
+    this._to = toPath;
+    this._oneWay = undefined;
 
-  // State
-  this._direction = undefined;
-  this._readyToSync = undefined;
-  this._fromObj = undefined;
-  this._fromPath = undefined;
-  this._toObj = undefined;
-}
+    // State
+    this._direction = undefined;
+    this._readyToSync = undefined;
+    this._fromObj = undefined;
+    this._fromPath = undefined;
+    this._toObj = undefined;
+  }
 
-/**
-  @class Binding
-  @namespace Ember
-  @public
-*/
+  /**
+    @class Binding
+    @namespace Ember
+    @deprecated See https://emberjs.com/deprecations/v2.x#toc_ember-binding
+    @public
+  */
 
-Binding.prototype = {
   /**
     This copies the Binding so it can be connected to another object.
 
@@ -74,10 +56,10 @@ Binding.prototype = {
     @public
   */
   copy() {
-    var copy = new Binding(this._to, this._from);
+    let copy = new Binding(this._to, this._from);
     if (this._oneWay) { copy._oneWay = true; }
     return copy;
-  },
+  }
 
   // ..........................................................
   // CONFIG
@@ -100,7 +82,7 @@ Binding.prototype = {
   from(path) {
     this._from = path;
     return this;
-  },
+  }
 
   /**
     This will set the `to` property path to the specified value. It will not
@@ -119,7 +101,7 @@ Binding.prototype = {
   to(path) {
     this._to = path;
     return this;
-  },
+  }
 
   /**
     Configures the binding as one way. A one-way binding will relay changes
@@ -134,7 +116,7 @@ Binding.prototype = {
   oneWay() {
     this._oneWay = true;
     return this;
-  },
+  }
 
   /**
     @method toString
@@ -142,9 +124,9 @@ Binding.prototype = {
     @public
   */
   toString() {
-    var oneWay = this._oneWay ? '[oneWay]' : '';
+    let oneWay = this._oneWay ? '[oneWay]' : '';
     return `Ember.Binding<${guidFor(this)}>(${this._from} -> ${this._to})${oneWay}`;
-  },
+  }
 
   // ..........................................................
   // CONNECT AND SYNC
@@ -163,13 +145,13 @@ Binding.prototype = {
   connect(obj) {
     assert('Must pass a valid object to Ember.Binding.connect()', !!obj);
 
-    let fromObj, fromPath;
+    let fromObj, fromPath, possibleGlobal;
 
     // If the binding's "from" path could be interpreted as a global, verify
     // whether the path refers to a global or not by consulting `Ember.lookup`.
     if (isGlobalPath(this._from)) {
       let name = getFirstKey(this._from);
-      let possibleGlobal = Ember.lookup[name];
+      possibleGlobal = context.lookup[name];
 
       if (possibleGlobal) {
         fromObj = possibleGlobal;
@@ -194,13 +176,22 @@ Binding.prototype = {
 
     addListener(obj, 'willDestroy', this, 'disconnect');
 
+    fireDeprecations(
+      obj,
+      this._to,
+      this._from,
+      possibleGlobal,
+      this._oneWay,
+      (!possibleGlobal && !this._oneWay)
+    );
+
     this._readyToSync = true;
     this._fromObj = fromObj;
     this._fromPath = fromPath;
     this._toObj = obj;
 
     return this;
-  },
+  }
 
   /**
     Disconnects the binding instance. Changes will no longer be relayed. You
@@ -224,7 +215,7 @@ Binding.prototype = {
 
     this._readyToSync = false; // Disable scheduled syncs...
     return this;
-  },
+  }
 
   // ..........................................................
   // PRIVATE
@@ -233,15 +224,15 @@ Binding.prototype = {
   /* Called when the from side changes. */
   fromDidChange(target) {
     this._scheduleSync('fwd');
-  },
+  }
 
   /* Called when the to side changes. */
   toDidChange(target) {
     this._scheduleSync('back');
-  },
+  }
 
   _scheduleSync(dir) {
-    var existingDir = this._direction;
+    let existingDir = this._direction;
 
     // If we haven't scheduled the binding yet, schedule it.
     if (existingDir === undefined) {
@@ -254,10 +245,10 @@ Binding.prototype = {
     if (existingDir === 'back' && dir === 'fwd') {
       this._direction = 'fwd';
     }
-  },
+  }
 
   _sync() {
-    var log = Ember.LOG_BINDINGS;
+    let log = ENV.LOG_BINDINGS;
 
     let toObj = this._toObj;
 
@@ -266,16 +257,16 @@ Binding.prototype = {
 
     // Get the direction of the binding for the object we are
     // synchronizing from.
-    var direction = this._direction;
+    let direction = this._direction;
 
-    var fromObj = this._fromObj;
-    var fromPath = this._fromPath;
+    let fromObj = this._fromObj;
+    let fromPath = this._fromPath;
 
     this._direction = undefined;
 
     // If we're synchronizing from the remote object...
     if (direction === 'fwd') {
-      var fromValue = get(fromObj, fromPath);
+      let fromValue = get(fromObj, fromPath);
       if (log) {
         Logger.log(' ', this.toString(), '->', fromValue, fromObj);
       }
@@ -288,20 +279,46 @@ Binding.prototype = {
       }
     // If we're synchronizing *to* the remote object.
     } else if (direction === 'back') {
-      var toValue = get(toObj, this._to);
+      let toValue = get(toObj, this._to);
       if (log) {
         Logger.log(' ', this.toString(), '<-', toValue, toObj);
       }
-      _suspendObserver(fromObj, fromPath, this, 'fromDidChange', function() {
+      _suspendObserver(fromObj, fromPath, this, 'fromDidChange', () => {
         trySet(fromObj, fromPath, toValue);
       });
     }
   }
+}
 
-};
+function fireDeprecations(obj, toPath, fromPath, deprecateGlobal, deprecateOneWay, deprecateAlias) {
+  let deprecateGlobalMessage = '`Ember.Binding` is deprecated. Since you' +
+    ' are binding to a global consider using a service instead.';
+  let deprecateOneWayMessage = '`Ember.Binding` is deprecated. Since you' +
+    ' are using a `oneWay` binding consider using a `readOnly` computed' +
+    ' property instead.';
+  let deprecateAliasMessage = '`Ember.Binding` is deprecated. Consider' +
+    ' using an `alias` computed property instead.';
+
+  let objectInfo = `The \`${toPath}\` property of \`${obj}\` is an \`Ember.Binding\` connected to \`${fromPath}\`, but `;
+  deprecate(objectInfo + deprecateGlobalMessage, !deprecateGlobal, {
+    id: 'ember-metal.binding',
+    until: '3.0.0',
+    url: 'https://emberjs.com/deprecations/v2.x#toc_ember-binding'
+  });
+  deprecate(objectInfo + deprecateOneWayMessage, !deprecateOneWay, {
+    id: 'ember-metal.binding',
+    until: '3.0.0',
+    url: 'https://emberjs.com/deprecations/v2.x#toc_ember-binding'
+  });
+  deprecate(objectInfo + deprecateAliasMessage, !deprecateAlias, {
+    id: 'ember-metal.binding',
+    until: '3.0.0',
+    url: 'https://emberjs.com/deprecations/v2.x#toc_ember-binding'
+  });
+}
 
 function mixinProperties(to, from) {
-  for (var key in from) {
+  for (let key in from) {
     if (from.hasOwnProperty(key)) {
       to[key] = from[key];
     }
@@ -317,7 +334,7 @@ mixinProperties(Binding, {
     @static
   */
   from(from) {
-    var C = this;
+    let C = this;
     return new C(undefined, from);
   },
 
@@ -328,7 +345,7 @@ mixinProperties(Binding, {
     @static
   */
   to(to) {
-    var C = this;
+    let C = this;
     return new C(to, undefined);
   }
 });

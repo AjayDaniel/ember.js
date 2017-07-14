@@ -1,6 +1,6 @@
 ## About Features
 
-Please read the [Feature Flag Guide](http://emberjs.com/guides/configuring-ember/feature-flags/)
+Please read the [Feature Flag Guide](https://emberjs.com/guides/configuring-ember/feature-flags/)
 for a detailed explanation.
 
 ## Feature Flags
@@ -10,52 +10,35 @@ for a detailed explanation.
   Add `isRegistered` to `Ember.libraries`. This convenience method checks whether
   a library is registered with Ember or not.
 
-* `ember-application-visit`
+* `ember-improved-instrumentation`
 
-  Provides an API for creating an application instance and specifying
-  an initial URL that it should route to. This is useful for testing
-  (you can have multiple instances of an app without having to run
-  serially and call `reset()` each time), as well as being critical to
-  for FastBoot.
+  Adds additional instrumentation to Ember:
 
-* `ember-debug-handlers`
+  - `interaction.<event-name>` for events handled by a component.
+  - `interaction.ember-action` for closure actions.
+  - `interaction.link-to` for link-to execution.
 
-  Implements RFC https://github.com/emberjs/rfcs/pull/65, adding support for
-  custom deprecation and warning handlers.
+* `ember-testing-resume-test`
 
-* `ember-routing-routable-components`
+  Introduces the `resumeTest` testing helper to complement the `pauseTest` helper.
 
-  Implements RFC https://github.com/emberjs/rfcs/pull/38, adding support for
-  routable components.
+* `glimmer-custom-component-manager`
 
-* `ember-metal-ember-assign`
+  Adds an ability to for developers to integrate their own custom component managers
+  into Ember Applications per [RFC](https://github.com/emberjs/rfcs/blob/custom-components/text/0000-custom-components.md).
 
-  Add `Ember.assign` that is polyfill for `Object.assign`.
+* `ember-module-unification`
 
-* `ember-contextual-components`
+  Introduces support for Module Unification
+  ([RFC](https://github.com/dgeb/rfcs/blob/module-unification/text/0000-module-unification.md))
+  to Ember. This includes:
 
-  Introduce a helper that creates closures over attrs and its own path, then
-  allow the closed over cell to be invoked via the `{{component` helper or
-  any reference with a dot in the path.
+  - Passing the `source` of a `lookup`/`factoryFor` call as the second argument
+    to an Ember resolver's `resolve` method (as a positional arg we will call
+    `referrer`).
+  - Making `lookupComponentPair` friendly to local/private resolutions. The
+    new code ensures a local resolution is not paired with a global resolution.
 
-  For example:
-
-  ```js
-  {{#with (hash profile=(component "user-profile")) as |userComponents|}}
-    {{userComponents.profile}}
-  {{/with}}
-  ```
-
-  Implements RFC [#64](https://github.com/emberjs/rfcs/blob/master/text/0064-contextual-component-lookup.md)
-
-* `ember-htmlbars-local-lookup`
-
-  Provides the ability for component lookup to be relative to the source template.
-
-  When the proper API's are implemented by the resolver in use this feature allows `{{x-foo}}` in a
-  given routes template (say the `post` route) to lookup a component nested under `post`.
-
-* `ember-test-helpers-fire-native-events`
-
-  Makes ember test helpers (`fillIn`, `click`, `triggerEvent` ...) fire native javascript events instead
-  of `jQuery.Event`s, maching more closely app's real usage.
+  This feature is paired with the
+  [`EMBER_RESOLVER_MODULE_UNIFICATION`](https://github.com/ember-cli/ember-resolver#ember_resolver_module_unification)
+  flag on the ember-resolver package.

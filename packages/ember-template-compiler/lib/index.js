@@ -1,49 +1,25 @@
 import _Ember from 'ember-metal';
-import precompile from 'ember-template-compiler/system/precompile';
-import compile from 'ember-template-compiler/system/compile';
-import template from 'ember-template-compiler/system/template';
-import { registerPlugin } from 'ember-template-compiler/plugins';
+import * as FLAGS from 'ember/features';
+import { ENV } from 'ember-environment';
+import VERSION from 'ember/version';
 
-import TransformOldBindingSyntax from 'ember-template-compiler/plugins/transform-old-binding-syntax';
-import TransformOldClassBindingSyntax from 'ember-template-compiler/plugins/transform-old-class-binding-syntax';
-import TransformItemClass from 'ember-template-compiler/plugins/transform-item-class';
-import TransformComponentAttrsIntoMut from 'ember-template-compiler/plugins/transform-component-attrs-into-mut';
-import TransformComponentCurlyToReadonly from 'ember-template-compiler/plugins/transform-component-curly-to-readonly';
-import TransformAngleBracketComponents from 'ember-template-compiler/plugins/transform-angle-bracket-components';
-import TransformInputOnToOnEvent from 'ember-template-compiler/plugins/transform-input-on-to-onEvent';
-import TransformTopLevelComponents from 'ember-template-compiler/plugins/transform-top-level-components';
-import TransformEachIntoCollection from 'ember-template-compiler/plugins/transform-each-into-collection';
-import TransformUnescapedInlineLinkTo from 'ember-template-compiler/plugins/transform-unescaped-inline-link-to';
-import AssertNoViewAndControllerPaths from 'ember-template-compiler/plugins/assert-no-view-and-controller-paths';
-import AssertNoViewHelper from 'ember-template-compiler/plugins/assert-no-view-helper';
-import AssertNoEachIn from 'ember-template-compiler/plugins/assert-no-each-in';
+// private API used by ember-cli-htmlbars to setup ENV and FEATURES
+if (!_Ember.ENV) { _Ember.ENV = ENV; }
+if (!_Ember.FEATURES) { _Ember.FEATURES = FLAGS.FEATURES; }
+if (!_Ember.VERSION) { _Ember.VERSION = VERSION; }
+
+export { _Ember };
+
+export { default as precompile } from './system/precompile';
+export { default as compile } from './system/compile';
+export {
+  default as compileOptions,
+  registerPlugin
+} from './system/compile-options';
+export { default as defaultPlugins } from './plugins';
 
 // used for adding Ember.Handlebars.compile for backwards compat
-import 'ember-template-compiler/compat';
+import './compat';
 
-registerPlugin('ast', TransformOldBindingSyntax);
-registerPlugin('ast', TransformOldClassBindingSyntax);
-registerPlugin('ast', TransformItemClass);
-registerPlugin('ast', TransformComponentAttrsIntoMut);
-registerPlugin('ast', TransformComponentCurlyToReadonly);
-registerPlugin('ast', TransformAngleBracketComponents);
-registerPlugin('ast', TransformInputOnToOnEvent);
-registerPlugin('ast', TransformTopLevelComponents);
-registerPlugin('ast', TransformUnescapedInlineLinkTo);
-registerPlugin('ast', AssertNoEachIn);
-
-if (_Ember.ENV._ENABLE_LEGACY_VIEW_SUPPORT) {
-  registerPlugin('ast', TransformEachIntoCollection);
-} else {
-  registerPlugin('ast', AssertNoViewAndControllerPaths);
-  registerPlugin('ast', AssertNoViewHelper);
-}
-
-
-export {
-  _Ember,
-  precompile,
-  compile,
-  template,
-  registerPlugin
-};
+// used to bootstrap templates
+import './system/bootstrap';
